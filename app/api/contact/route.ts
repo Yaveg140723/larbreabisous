@@ -51,9 +51,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Enregistrement impossible" }, { status: 500 });
   }
 
-  // 3) Rediriger vers une page de remerciement (à créer : app/merci/page.tsx).
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  return NextResponse.redirect(`${siteUrl}/merci`, { status: 303 });
+  // 3) Rediriger vers la page de remerciement (app/merci/page.tsx).
+  //    On utilise une adresse RELATIVE ("/merci") : le navigateur la résout
+  //    tout seul par rapport à la page courante. Résultat : ça marche partout
+  //    (Codespaces, localhost, Vercel) SANS souci de domaine ni de port.
+  return new NextResponse(null, {
+    status: 303,
+    headers: { Location: "/merci" },
+  });
 }
 
 // Fonction utilitaire : demande à Cloudflare si le CAPTCHA est valide.

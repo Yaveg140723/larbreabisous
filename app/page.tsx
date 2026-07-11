@@ -14,6 +14,10 @@
 //  (dans le layout), donc inutile de les répéter ici.
 // ============================================================================
 
+// On importe le composant <Script> de Next.js : il sert à charger proprement
+// un script externe (ici, celui du CAPTCHA Cloudflare Turnstile).
+import Script from "next/script";
+
 // --- DONNÉES DE LA PAGE ------------------------------------------------------
 // On range les infos dans des tableaux, puis on "boucle" dessus avec .map()
 // plus bas (au lieu de copier-coller chaque carte). Le jour où tu brancheras
@@ -161,37 +165,43 @@ export default function Home() {
         {/*    le message dans Supabase.                                        */}
         <form action="/api/contact" method="POST" className="bg-white rounded-3xl shadow-xl p-6 sm:p-12 space-y-6">
 
-          {/* name="…" = obligatoire pour transmettre la donnée au serveur.    */}
-          {/* <label sr-only> = invisible à l'écran mais lu par les lecteurs   */}
-          {/* d'écran (accessibilité), sans modifier le design.                */}
+          {/* CHANGEMENT LISIBILITÉ :                                          */}
+          {/*  • Les labels sont désormais VISIBLES (avant : "sr-only" cachés). */}
+          {/*    Classe des labels : texte foncé + gras léger → bien lisibles. */}
+          {/*  • Placeholders assombris : "placeholder:text-gray-500" au lieu  */}
+          {/*    du gris très clair par défaut.                                */}
+          {/*  • Bordures un peu plus marquées : "border-gray-300".            */}
+          {/* On crée une petite classe réutilisable (constante labelClass et  */}
+          {/* inputClass) plus haut ? Ici on reste explicite pour l'apprentis- */}
+          {/* sage : chaque champ montre ses classes en entier.                */}
           <div>
-            <label htmlFor="nom" className="sr-only">Nom</label>
-            <input id="nom" name="nom" type="text" placeholder="Nom" required
-              className="w-full border border-gray-200 rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-[#B03052]/40" />
+            <label htmlFor="nom" className="block text-sm font-semibold text-[#2C2C2C] mb-1.5">Nom</label>
+            <input id="nom" name="nom" type="text" placeholder="Votre nom" required
+              className="w-full border border-gray-300 rounded-xl p-4 text-[#2C2C2C] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#B03052]/40" />
           </div>
 
           <div>
-            <label htmlFor="prenom" className="sr-only">Prénom</label>
-            <input id="prenom" name="prenom" type="text" placeholder="Prénom" required
-              className="w-full border border-gray-200 rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-[#B03052]/40" />
+            <label htmlFor="prenom" className="block text-sm font-semibold text-[#2C2C2C] mb-1.5">Prénom</label>
+            <input id="prenom" name="prenom" type="text" placeholder="Votre prénom" required
+              className="w-full border border-gray-300 rounded-xl p-4 text-[#2C2C2C] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#B03052]/40" />
           </div>
 
           <div>
-            <label htmlFor="email" className="sr-only">Email</label>
-            <input id="email" name="email" type="email" placeholder="Email" required
-              className="w-full border border-gray-200 rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-[#B03052]/40" />
+            <label htmlFor="email" className="block text-sm font-semibold text-[#2C2C2C] mb-1.5">Email</label>
+            <input id="email" name="email" type="email" placeholder="exemple@email.com" required
+              className="w-full border border-gray-300 rounded-xl p-4 text-[#2C2C2C] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#B03052]/40" />
           </div>
 
           <div>
-            <label htmlFor="telephone" className="sr-only">Téléphone</label>
-            <input id="telephone" name="telephone" type="tel" placeholder="Téléphone"
-              className="w-full border border-gray-200 rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-[#B03052]/40" />
+            <label htmlFor="telephone" className="block text-sm font-semibold text-[#2C2C2C] mb-1.5">Téléphone</label>
+            <input id="telephone" name="telephone" type="tel" placeholder="06 12 34 56 78"
+              className="w-full border border-gray-300 rounded-xl p-4 text-[#2C2C2C] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#B03052]/40" />
           </div>
 
           <div>
-            <label htmlFor="sujet" className="sr-only">Sujet</label>
+            <label htmlFor="sujet" className="block text-sm font-semibold text-[#2C2C2C] mb-1.5">Sujet</label>
             <select id="sujet" name="sujet"
-              className="w-full border border-gray-200 rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-[#B03052]/40">
+              className="w-full border border-gray-300 rounded-xl p-4 text-[#2C2C2C] focus:outline-none focus:ring-2 focus:ring-[#B03052]/40">
               <option>Choisissez un sujet</option>
               <option>Information Produit</option>
               <option>Commande Personnalisée</option>
@@ -201,9 +211,9 @@ export default function Home() {
           </div>
 
           <div>
-            <label htmlFor="message" className="sr-only">Votre message</label>
-            <textarea id="message" name="message" rows={6} placeholder="Votre message" required
-              className="w-full border border-gray-200 rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-[#B03052]/40"></textarea>
+            <label htmlFor="message" className="block text-sm font-semibold text-[#2C2C2C] mb-1.5">Votre message</label>
+            <textarea id="message" name="message" rows={6} placeholder="Écrivez votre message ici…" required
+              className="w-full border border-gray-300 rounded-xl p-4 text-[#2C2C2C] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#B03052]/40"></textarea>
           </div>
 
           <label className="flex gap-3 items-start">
@@ -214,16 +224,26 @@ export default function Home() {
             </span>
           </label>
 
-          {/* Emplacement du widget CAPTCHA (Cloudflare Turnstile). */}
-          <div className="border-2 border-dashed border-[#B03052] rounded-xl p-6 text-center text-[#B03052]">
-            CAPTCHA Cloudflare Turnstile
-          </div>
+          {/* WIDGET CAPTCHA TURNSTILE (le vrai, plus le carré en pointillés).   */}
+          {/* La classe "cf-turnstile" est repérée automatiquement par le script */}
+          {/* chargé plus bas. data-sitekey = ta clé PUBLIQUE (site key).        */}
+          {/* Une fois résolu, le widget ajoute tout seul un champ caché         */}
+          {/* "cf-turnstile-response" dans le formulaire → c'est LUI que la      */}
+          {/* route serveur vérifie avant d'enregistrer le message.             */}
+          <div
+            className="cf-turnstile"
+            data-sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+          ></div>
 
           <button type="submit"
             className="w-full bg-[#B03052] hover:bg-[#8d2742] text-white py-4 rounded-xl text-lg transition-colors focus:outline-none focus:ring-4 focus:ring-[#B03052]/30">
             Envoyer ma demande
           </button>
         </form>
+
+        {/* Charge le script Turnstile (une seule fois). C'est lui qui           */}
+        {/* transforme la <div className="cf-turnstile"> ci-dessus en widget.    */}
+        <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
       </section>
 
     </main>
