@@ -1,26 +1,41 @@
+/* ============================================================================
+   Feuille de style globale — Tailwind v4
+   EMPLACEMENT dans ton projet : app/globals.css
+   👉 Remplace TOUT le contenu de ton fichier actuel par celui-ci.
+   ========================================================================== */
+
+/* 1) Charge Tailwind. Cette ligne doit TOUJOURS rester en premier. */
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/* 2) Branche les polices (chargées par next/font dans layout.tsx) sur les
+      classes Tailwind "font-sans" (Nunito) et "font-serif" (Playfair). */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-nunito);
+  --font-serif: var(--font-playfair);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* 3) 🎨 COULEURS DU SITE — LE SEUL ENDROIT à modifier pour changer le fond.
+      Change juste la valeur de --page-bg ci-dessous et sauvegarde : tout le
+      site se met à jour. Quelques ambiances qui vont avec ta charte rose :
+
+        #FFF9F5  crème très clair (presque blanc)
+        #F5E6E8  rose poudré clair   ← choisi : doux, léger contraste
+        #F0E4D8  beige chaleureux
+        #EAE3DF  greige (gris-beige) neutre et chic
+        #3B2B33  prune foncé (ambiance sombre DOUCE, pas noire)
+
+      ⚠️ Si tu choisis un fond foncé (ex. #3B2B33), passe --page-text en clair
+      (ex. #FFF5F7) pour garder le texte lisible. */
+:root {
+  --page-bg: #F5E6E8;
+  --page-text: #2C2C2C;
 }
 
+/* 4) Applique le fond + la couleur du texte à toute la page.
+      Écrit hors des "layers" de Tailwind → cette règle gagne de façon fiable.
+      C'est CE bloc qui remplace le mode sombre automatique (le fameux fond
+      noir) : on ne le remet pas, donc le fond reste celui que TU choisis. */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--page-bg);
+  color: var(--page-text);
 }
