@@ -2,60 +2,82 @@
 //  Route API — Création d'une session Stripe Checkout
 //  EMPLACEMENT dans ton projet : app/api/checkout/route.ts
 //
-//  RÔLE : quand un visiteur clique sur "Commander" (page d'accueil), ce fichier
-//  reçoit l'id du produit, crée une session de paiement Stripe, puis redirige
-//  le visiteur vers la page de paiement sécurisée hébergée par Stripe.
+//  ⭐ La personnalisation est maintenant saisie SUR TA FICHE PRODUIT (ton site),
+//  plus sur la page Stripe → tu contrôles totalement son affichage. On la
+//  transmet ensuite à Stripe : elle apparaît sur le récapitulatif de paiement
+//  ET on la stocke (metadata) pour la page de confirmation.
 //
-//  ⚠️ À FAIRE POUR QUE ÇA FONCTIONNE :
-//   1) Installer la librairie :   npm install stripe
-//   2) Créer un fichier .env.local (JAMAIS commité sur Git) avec TES clés :
-//        STRIPE_SECRET_KEY=sk_test_xxxxxxxxxxxxxxxxx
-//        NEXT_PUBLIC_SITE_URL=http://localhost:3000
-//   3) Remplacer les "price_XXXX" ci-dessous par tes vrais Price IDs Stripe
-//      (créés dans ton tableau de bord Stripe → Produits → Tarifs).
-//      Idéalement, ces prix viendront plus tard de ta base Supabase.
+//  ⚠️ .env.local : STRIPE_SECRET_KEY, NEXT_PUBLIC_SITE_URL (adresse -3000.app…)
 // ============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { supabase } from "@/lib/supabase"; // client Supabase (lecture publique)
 
-// On crée l'objet Stripe avec la CLÉ SECRÈTE, lue dans les variables
-// d'environnement → elle n'est jamais visible côté navigateur.
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
-// Petit catalogue temporaire : à chaque id de produit correspond un Price Stripe.
-// TODO : remplace ces valeurs de démonstration par tes vrais Price IDs.
-const CATALOGUE: Record<string, { priceId: string }> = {
-  "bijoux-perso":    { priceId: "price_XXXXXXXXXXXX" },
-  "carterie-albums": { priceId: "price_XXXXXXXXXXXX" },
-  "couture-cadeaux": { priceId: "price_XXXXXXXXXXXX" },
-};
-
-// La fonction POST est appelée automatiquement quand le formulaire "Commander"
-// est soumis (méthode POST vers /api/checkout).
 export async function POST(request: NextRequest) {
-  // 1) Lire l'id envoyé par le champ caché <input name="productId">.
+  // 1) Lire l'id du produit envoyé par le bouton "Commander".
   const formData = await request.formData();
   const productId = formData.get("productId") as string;
 
-  // 2) Vérifier que le produit existe (sécurité : on ne fait pas confiance
-  //    aveuglément à ce que le navigateur envoie).
-  const produit = CATALOGUE[productId];
-  if (!produit) {
+  // 2) Lire le vrai produit dans Supabase (prix + stock + personnalisable).
+  const { data: produit, error } = await supabase
+    .from("products")
+    .select("name, price, stock, customizable")
+    .eq("id", productId)
+    .single();
+
+  if (error || !produit) {
     return NextResponse.json({ error: "Produit inconnu" }, { status: 400 });
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  // 🔒 Sécurité STOCK : refuser si plus de stock.
+  if (produit.stock < 1) {
+    return NextResponse.json({ error: "Produit en rupture de stock" }, { status: 400 });
+  }
 
-  // 3) Créer la session de paiement Stripe.
+  // 3) Lire la personnalisation envoyée par la fiche produit.
+  //    On ne la garde QUE si le produit est réellement personnalisable, et on
+  //    coupe à 30 caractères par sécurité (au cas où le champ serait contourné).
+  let personnalisation: string | null = null;
+  if (produit.customizable) {
+    const saisie = (formData.get("personnalisation") as string | null) ?? "";
+    personnalisation = saisie.trim().slice(0, 30) || null;
+  }
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  // Stripe attend un montant en CENTIMES → euros × 100, arrondi.
+  const montantCentimes = Math.round(Number(produit.price) * 100);
+
+  // 4) Créer la session de paiement Stripe.
   const session = await stripe.checkout.sessions.create({
-    mode: "payment", // paiement unique (pour un abonnement, on mettrait "subscription")
-    line_items: [{ price: produit.priceId, quantity: 1 }],
-    success_url: `${siteUrl}/merci?session_id={CHECKOUT_SESSION_ID}`, // après paiement réussi
-    cancel_url: `${siteUrl}/#boutique`,                                // si le client annule
+    mode: "payment",
+    line_items: [
+      {
+        price_data: {
+          currency: "eur",
+          product_data: {
+            name: produit.name,
+            // Si personnalisation : on l'affiche sous le produit sur Stripe.
+            ...(personnalisation
+              ? { description: `Personnalisation : ${personnalisation}` }
+              : {}),
+          },
+          unit_amount: montantCentimes,
+        },
+        quantity: 1,
+      },
+    ],
+    // On range la personnalisation dans "metadata" → la page de confirmation
+    // pourra la relire à partir du session_id.
+    metadata: personnalisation ? { personnalisation } : {},
+
+    // {CHECKOUT_SESSION_ID} est remplacé par Stripe par l'id de la session.
+    success_url: `${siteUrl}/commande-confirmee?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${siteUrl}/#boutique`,
   });
 
-  // 4) Rediriger le visiteur vers la page de paiement Stripe.
-  //    Le code 303 indique au navigateur de suivre la redirection en GET.
+  // 5) Rediriger vers la page de paiement Stripe.
   return NextResponse.redirect(session.url as string, { status: 303 });
 }

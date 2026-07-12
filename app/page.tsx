@@ -14,16 +14,15 @@
 //  (dans le layout), donc inutile de les répéter ici.
 // ============================================================================
 
-// On importe le composant <Script> de Next.js : il sert à charger proprement
-// un script externe (ici, celui du CAPTCHA Cloudflare Turnstile).
+// On importe le composant <Script> de Next.js (pour le CAPTCHA Turnstile)…
 import Script from "next/script";
+// …et le client Supabase, pour lire les produits depuis ta base de données.
+import { supabase } from "@/lib/supabase";
 
-// --- DONNÉES DE LA PAGE ------------------------------------------------------
-// On range les infos dans des tableaux, puis on "boucle" dessus avec .map()
-// plus bas (au lieu de copier-coller chaque carte). Le jour où tu brancheras
-// Supabase, tu remplaceras simplement ces tableaux par des données lues dans
-// ta base : l'affichage, lui, ne changera pas.
-
+// --- DONNÉES STATIQUES ------------------------------------------------------
+// Les "catégories" (section Nos Créations) sont de simples vignettes
+// décoratives → on les garde en dur ici. En revanche, les PRODUITS de la
+// boutique sont maintenant LUS DEPUIS SUPABASE (voir la requête dans Home).
 const categories = [
   { icon: "🧵", titre: "Couture", texte: "Pièces cousues main, uniques." },
   { icon: "💎", titre: "Bijoux", texte: "Bijoux personnalisés sur mesure." },
@@ -33,25 +32,25 @@ const categories = [
   { icon: "🎁", titre: "Cadeaux Personnalisés", texte: "Cadeaux qui font plaisir." },
 ];
 
-const produitsDuMoment = [
-  {
-    id: "bijoux-perso",
-    titre: "Bijoux personnalisés",
-    texte: "Créations artisanales uniques réalisées sur mesure selon vos envies.",
-  },
-  {
-    id: "carterie-albums",
-    titre: "Carterie & Albums",
-    texte: "Cartes, albums photos et souvenirs personnalisés pour toutes les occasions.",
-  },
-  {
-    id: "couture-cadeaux",
-    titre: "Couture & Cadeaux",
-    texte: "Cadeaux personnalisés confectionnés à la main pour célébrer les moments importants.",
-  },
-];
+// Petite fonction utilitaire : transforme un prix en euros (ex. 25) en un
+// texte lisible "25,00 €" (avec le bon symbole et les décimales).
+function formatPrix(euros: number | string) {
+  return Number(euros).toLocaleString("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+  });
+}
 
-export default function Home() {
+// La fonction est "async" : elle peut ATTENDRE (await) les données de Supabase
+// avant de construire la page. C'est un super-pouvoir des Server Components.
+export default async function Home() {
+  // On lit les produits depuis la table "products" de Supabase.
+  // (La politique RLS "lecture publique" autorise cette requête.)
+  const { data: produits } = await supabase
+    .from("products")
+    .select("id, name, description, price, image_url, customizable, customization_label, weight, stock")
+    .order("created_at", { ascending: true });
+
   return (
     // <main> = le contenu principal de la page (sans le menu ni le pied de page,
     // qui sont dans le layout). Le fond et la couleur viennent du <body>.
@@ -123,32 +122,101 @@ export default function Home() {
           Les créations du moment
         </h2>
 
+        {/* Si aucun produit (base vide ou souci de lecture), on prévient. */}
+        {(!produits || produits.length === 0) && (
+          <p className="text-center text-gray-500">
+            Aucun produit pour le moment. Revenez bientôt ! 🌸
+          </p>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-          {produitsDuMoment.map((produit) => (
+          {/* On boucle sur les produits LUS DEPUIS SUPABASE (variable "produits"). */}
+          {(produits ?? []).map((produit) => (
             <div
               key={produit.id}
               className="bg-white rounded-3xl p-6 md:p-8 shadow-md hover:shadow-xl hover:-translate-y-2 transition-all duration-300 flex flex-col"
             >
-              {/* Vignette produit. aspect-[4/3] garde de belles proportions.  */}
-              {/* 👉 Plus tard : remplace par une vraie image (next/image).    */}
-              <div className="aspect-[4/3] bg-[#E8B7C8] rounded-2xl mb-6"></div>
+              {/* Si le produit a une photo (image_url), on l'affiche ; sinon on */}
+              {/* garde la vignette rose. (<img> simple ; on passera à next/image */}
+              {/* plus tard, qui demande un réglage de domaines autorisés.)       */}
+              {produit.image_url ? (
+                <img
+                  src={produit.image_url}
+                  alt={produit.name}
+                  className="aspect-[4/3] w-full object-cover rounded-2xl mb-6"
+                />
+              ) : (
+                <div className="aspect-[4/3] bg-[#E8B7C8] rounded-2xl mb-6"></div>
+              )}
 
-              <h3 className="text-2xl font-semibold text-[#B03052] mb-3">{produit.titre}</h3>
-              <p className="text-gray-600 leading-relaxed mb-6">{produit.texte}</p>
+              <h3 className="text-2xl font-semibold text-[#B03052] mb-2">{produit.name}</h3>
+              <p className="text-gray-600 leading-relaxed mb-3">{produit.description}</p>
 
-              {/* mt-auto aligne tous les boutons en bas, même si les textes    */}
-              {/* ont des longueurs différentes.                                */}
-              {/* ── INTÉGRATION STRIPE CHECKOUT : ce <form> envoie l'id du      */}
-              {/*    produit à app/api/checkout/route.ts, qui crée le paiement.  */}
-              <form action="/api/checkout" method="POST" className="mt-auto">
-                <input type="hidden" name="productId" value={produit.id} />
-                <button
-                  type="submit"
-                  className="w-full bg-[#B03052] hover:bg-[#8d2742] text-white py-3 rounded-xl font-medium transition-colors focus:outline-none focus:ring-4 focus:ring-[#B03052]/30"
-                >
-                  Commander
-                </button>
-              </form>
+              {/* INFOS PRODUIT : badge "personnalisable" + poids.                */}
+              {/* produit.customizable vaut vrai/faux → on affiche un badge OU    */}
+              {/* l'autre grâce à l'opérateur ternaire (condition ? A : B).       */}
+              <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
+                {produit.customizable ? (
+                  <span className="inline-flex items-center gap-1 bg-[#F5E6E8] text-[#B03052] font-medium px-3 py-1 rounded-full">
+                    ✨ Personnalisable
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-500 px-3 py-1 rounded-full">
+                    Non personnalisable
+                  </span>
+                )}
+                <span className="text-gray-500">Poids&nbsp;: {produit.weight} g</span>
+              </div>
+
+              {/* Le prix, formaté joliment (ex. "25,00 €"). */}
+              <p className="text-xl font-bold text-[#B03052] mb-6">{formatPrix(produit.price)}</p>
+
+              {/* GESTION DU STOCK :                                              */}
+              {/*  • s'il reste au moins 1 article (stock >= 1) → bouton Commander */}
+              {/*  • sinon → message "Victime de son succès" (achat impossible)    */}
+              {/* mt-auto pousse ce bloc tout en bas de la carte.                 */}
+              {produit.stock >= 1 ? (
+                // ── STRIPE : le formulaire n'envoie QUE l'id du produit ; le
+                //    serveur relit le vrai prix ET revérifie le stock. 🔒
+                <form action="/api/checkout" method="POST" className="mt-auto">
+                  <input type="hidden" name="productId" value={produit.id} />
+
+                  {/* CHAMP DE PERSONNALISATION — affiché SEULEMENT si le produit  */}
+                  {/* est personnalisable. C'est ICI que le client saisit son      */}
+                  {/* texte (bien visible, sur la fiche produit, avant de payer).  */}
+                  {/* maxLength={30} bloque la saisie à 30 caractères.             */}
+                  {produit.customizable && (
+                    <div className="mb-4 bg-[#F5E6E8] rounded-xl p-3">
+                      <label
+                        htmlFor={`perso-${produit.id}`}
+                        className="block text-sm font-semibold text-[#B03052] mb-1.5"
+                      >
+                        ✨ {produit.customization_label || "Votre personnalisation"}
+                      </label>
+                      <input
+                        id={`perso-${produit.id}`}
+                        name="personnalisation"
+                        type="text"
+                        maxLength={30}
+                        required
+                        placeholder="Prénom, message, surnom… (30 car. max)"
+                        className="w-full border border-[#B03052]/40 rounded-lg p-2.5 text-[#2C2C2C] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#B03052]/40"
+                      />
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full bg-[#B03052] hover:bg-[#8d2742] text-white py-3 rounded-xl font-medium transition-colors focus:outline-none focus:ring-4 focus:ring-[#B03052]/30"
+                  >
+                    Commander
+                  </button>
+                </form>
+              ) : (
+                <p className="mt-auto text-center font-semibold text-[#B03052] bg-[#F5E6E8] py-3 rounded-xl">
+                  Victime de son succès 🥲
+                </p>
+              )}
             </div>
           ))}
         </div>
