@@ -130,15 +130,15 @@ export default async function Home() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-          {/* On boucle sur les produits LUS DEPUIS SUPABASE (variable "produits"). */}
+          {/* Chaque produit est une VIGNETTE CLIQUABLE (<a>) qui mène à sa fiche */}
+          {/* détaillée /produit/[id], où la photo s'affiche en grand.           */}
           {(produits ?? []).map((produit) => (
-            <div
+            <a
               key={produit.id}
-              className="bg-white rounded-3xl p-6 md:p-8 shadow-md hover:shadow-xl hover:-translate-y-2 transition-all duration-300 flex flex-col"
+              href={`/produit/${produit.id}`}
+              className="bg-white rounded-3xl p-6 md:p-8 shadow-md hover:shadow-xl hover:-translate-y-2 transition-all duration-300 flex flex-col group"
             >
-              {/* Si le produit a une photo (image_url), on l'affiche ; sinon on */}
-              {/* garde la vignette rose. (<img> simple ; on passera à next/image */}
-              {/* plus tard, qui demande un réglage de domaines autorisés.)       */}
+              {/* Vignette : la photo (image_url) ou, à défaut, un carré rose. */}
               {produit.image_url ? (
                 <img
                   src={produit.image_url}
@@ -150,12 +150,12 @@ export default async function Home() {
               )}
 
               <h3 className="text-2xl font-semibold text-[#B03052] mb-2">{produit.name}</h3>
-              <p className="text-gray-600 leading-relaxed mb-3">{produit.description}</p>
 
-              {/* INFOS PRODUIT : badge "personnalisable" + poids.                */}
-              {/* produit.customizable vaut vrai/faux → on affiche un badge OU    */}
-              {/* l'autre grâce à l'opérateur ternaire (condition ? A : B).       */}
-              <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
+              {/* Description courte : line-clamp-2 la coupe à 2 lignes maximum. */}
+              <p className="text-gray-600 leading-relaxed mb-3 line-clamp-2">{produit.description}</p>
+
+              {/* Badge personnalisable */}
+              <div className="mb-3 text-sm">
                 {produit.customizable ? (
                   <span className="inline-flex items-center gap-1 bg-[#F5E6E8] text-[#B03052] font-medium px-3 py-1 rounded-full">
                     ✨ Personnalisable
@@ -165,59 +165,21 @@ export default async function Home() {
                     Non personnalisable
                   </span>
                 )}
-                <span className="text-gray-500">Poids&nbsp;: {produit.weight} g</span>
               </div>
 
-              {/* Le prix, formaté joliment (ex. "25,00 €"). */}
-              <p className="text-xl font-bold text-[#B03052] mb-6">{formatPrix(produit.price)}</p>
+              <p className="text-xl font-bold text-[#B03052] mb-4">{formatPrix(produit.price)}</p>
 
-              {/* GESTION DU STOCK :                                              */}
-              {/*  • s'il reste au moins 1 article (stock >= 1) → bouton Commander */}
-              {/*  • sinon → message "Victime de son succès" (achat impossible)    */}
-              {/* mt-auto pousse ce bloc tout en bas de la carte.                 */}
+              {/* Bas de carte : "Voir le produit" si en stock, sinon rupture.    */}
               {produit.stock >= 1 ? (
-                // ── STRIPE : le formulaire n'envoie QUE l'id du produit ; le
-                //    serveur relit le vrai prix ET revérifie le stock. 🔒
-                <form action="/api/checkout" method="POST" className="mt-auto">
-                  <input type="hidden" name="productId" value={produit.id} />
-
-                  {/* CHAMP DE PERSONNALISATION — affiché SEULEMENT si le produit  */}
-                  {/* est personnalisable. C'est ICI que le client saisit son      */}
-                  {/* texte (bien visible, sur la fiche produit, avant de payer).  */}
-                  {/* maxLength={30} bloque la saisie à 30 caractères.             */}
-                  {produit.customizable && (
-                    <div className="mb-4 bg-[#F5E6E8] rounded-xl p-3">
-                      <label
-                        htmlFor={`perso-${produit.id}`}
-                        className="block text-sm font-semibold text-[#B03052] mb-1.5"
-                      >
-                        ✨ {produit.customization_label || "Votre personnalisation"}
-                      </label>
-                      <input
-                        id={`perso-${produit.id}`}
-                        name="personnalisation"
-                        type="text"
-                        maxLength={30}
-                        required
-                        placeholder="Prénom, message, surnom… (30 car. max)"
-                        className="w-full border border-[#B03052]/40 rounded-lg p-2.5 text-[#2C2C2C] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#B03052]/40"
-                      />
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    className="w-full bg-[#B03052] hover:bg-[#8d2742] text-white py-3 rounded-xl font-medium transition-colors focus:outline-none focus:ring-4 focus:ring-[#B03052]/30"
-                  >
-                    Commander
-                  </button>
-                </form>
+                <span className="mt-auto text-[#B03052] font-medium group-hover:underline">
+                  Voir le produit →
+                </span>
               ) : (
-                <p className="mt-auto text-center font-semibold text-[#B03052] bg-[#F5E6E8] py-3 rounded-xl">
+                <span className="mt-auto text-center font-semibold text-[#B03052] bg-[#F5E6E8] py-2 rounded-lg">
                   Victime de son succès 🥲
-                </p>
+                </span>
               )}
-            </div>
+            </a>
           ))}
         </div>
       </section>

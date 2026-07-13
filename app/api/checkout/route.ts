@@ -13,10 +13,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabase } from "@/lib/supabase"; // client Supabase (lecture publique)
+import { createSupabaseServer } from "@/lib/supabase-server"; // pour vérifier la connexion
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
 export async function POST(request: NextRequest) {
+  // 🔒 SÉCURITÉ : achat RÉSERVÉ aux comptes connectés. Même si quelqu'un
+  //    tentait d'envoyer une commande sans passer par le bouton du site, on
+  //    refuse et on le renvoie vers la page de connexion.
+  const authClient = await createSupabaseServer();
+  const {
+    data: { user },
+  } = await authClient.auth.getUser();
+  if (!user) {
+    return new NextResponse(null, { status: 303, headers: { Location: "/connexion" } });
+  }
+
   // 1) Lire l'id du produit envoyé par le bouton "Commander".
   const formData = await request.formData();
   const productId = formData.get("productId") as string;
