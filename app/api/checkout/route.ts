@@ -81,9 +81,13 @@ export async function POST(request: NextRequest) {
         quantity: 1,
       },
     ],
-    // On range la personnalisation dans "metadata" → la page de confirmation
-    // pourra la relire à partir du session_id.
-    metadata: personnalisation ? { personnalisation } : {},
+    // metadata : infos attachées à la commande.
+    //  • productId → sert au WEBHOOK pour savoir quel produit décrémenter.
+    //  • personnalisation → sert à la page de confirmation.
+    metadata: {
+      productId,
+      ...(personnalisation ? { personnalisation } : {}),
+    },
 
     // {CHECKOUT_SESSION_ID} est remplacé par Stripe par l'id de la session.
     success_url: `${siteUrl}/commande-confirmee?session_id={CHECKOUT_SESSION_ID}`,
