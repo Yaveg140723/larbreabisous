@@ -6,10 +6,21 @@
 //  sur TOUTES les pages via le layout, et non uniquement sur l'accueil.
 // ============================================================================
 
+import NewsletterForm from "@/components/NewsletterForm";
+
 export default function Footer() {
   return (
     <footer className="bg-[#B03052] text-white mt-16 md:mt-24">
       <div className="max-w-6xl mx-auto px-4 sm:px-8 py-12 md:py-16">
+
+        {/* ── NEWSLETTER (inscription) ── */}
+        <div className="mb-12 pb-12 border-b border-pink-300 text-center max-w-xl mx-auto">
+          <h3 className="text-2xl font-serif mb-2">Restez informée 🌸</h3>
+          <p className="mb-4 text-sm text-pink-100">
+            Inscrivez-vous pour recevoir les nouvelles créations et les actualités.
+          </p>
+          <NewsletterForm />
+        </div>
 
         {/* Grille des 3 colonnes : 1 colonne sur mobile, 3 sur écran moyen. */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-12">

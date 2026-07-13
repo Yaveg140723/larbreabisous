@@ -9,7 +9,14 @@
 
 import { redirect } from "next/navigation";
 import { createSupabaseServer } from "@/lib/supabase-server";
+import { createSupabaseAdmin } from "@/lib/supabase-admin";
 import BoutonSupprimer from "@/components/BoutonSupprimer";
+import BoutonSyncBrevo from "@/components/BoutonSyncBrevo";
+
+// Force la page à TOUJOURS afficher des données fraîches (jamais de cache).
+// Indispensable pour un tableau de bord admin : produits + inscrits newsletter
+// à jour à chaque visite.
+export const dynamic = "force-dynamic";
 
 function formatPrix(euros: number | string) {
   return Number(euros).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
@@ -35,6 +42,14 @@ export default async function Admin() {
     .from("products")
     .select("id, name, price, stock, weight, customizable")
     .order("created_at", { ascending: true });
+
+  // Inscrits à la newsletter — lus via le client ADMIN (service_role), car
+  // cette table n'est PAS en lecture publique (contrairement aux produits).
+  const admin = createSupabaseAdmin();
+  const { data: abonnes } = await admin
+    .from("newsletter_subscribers")
+    .select("email, created_at")
+    .order("created_at", { ascending: false });
 
   return (
     <main className="max-w-5xl mx-auto px-4 sm:px-8 py-16">
@@ -162,6 +177,29 @@ export default async function Admin() {
         💡 Astuce : « Modifier » ouvre la fiche du produit ; « Supprimer » demande
         une confirmation avant d'effacer.
       </p>
+
+      {/* ── SECTION NEWSLETTER ── */}
+      <h2 className="text-2xl font-serif text-[#B03052] mt-16 mb-4">
+        Newsletter — {abonnes?.length ?? 0} inscrit(e)s
+      </h2>
+      <div className="bg-white rounded-3xl shadow-lg p-6 md:p-8">
+        <p className="text-gray-600 mb-4">
+          Adresses email des personnes inscrites. Sélectionne-les et copie-les
+          pour les importer dans ton service d'emailing.
+        </p>
+        <textarea
+          readOnly
+          rows={6}
+          value={(abonnes ?? []).map((a) => a.email).join("\n")}
+          className="w-full border border-gray-300 rounded-xl p-3 text-sm text-[#2C2C2C] font-mono"
+        />
+        {/* Bouton de synchronisation vers Brevo (en un clic). */}
+        <BoutonSyncBrevo />
+        <p className="text-gray-500 text-sm mt-3">
+          Ce bouton envoie tous les emails ci-dessus vers ta liste Brevo. Tu
+          enverras ensuite tes campagnes directement depuis Brevo.
+        </p>
+      </div>
     </main>
   );
 }
