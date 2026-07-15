@@ -12,6 +12,7 @@
 import { notFound } from "next/navigation";
 import { createSupabaseServer } from "@/lib/supabase-server";
 import PhotoZoom from "@/components/PhotoZoom";
+import BoutonAjouterPanier from "@/components/BoutonAjouterPanier";
 
 function formatPrix(euros: number | string) {
   return Number(euros).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
@@ -36,11 +37,6 @@ export default async function ProduitDetail({
   if (!produit) {
     notFound();
   }
-
-  // On regarde AUSSI qui est connecté : l'achat est réservé aux comptes.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   return (
     <main className="max-w-5xl mx-auto px-4 sm:px-8 py-12 md:py-16">
@@ -75,60 +71,21 @@ export default async function ProduitDetail({
 
           <p className="text-3xl font-bold text-[#B03052] mb-8">{formatPrix(produit.price)}</p>
 
-          {/* Achat : même logique qu'avant, mais sur la fiche détaillée.        */}
-          {/* En stock → formulaire (avec personnalisation si besoin) ; sinon →  */}
-          {/* message "Victime de son succès".                                   */}
-          {/* ACHAT — 3 cas :                                                  */}
-          {/*  1) plus de stock → "Victime de son succès"                      */}
-          {/*  2) en stock MAIS pas connecté → invitation à se connecter        */}
-          {/*  3) en stock ET connecté → formulaire de commande                */}
+          {/* ACHAT : on AJOUTE AU PANIER (le paiement se fera depuis le panier). */}
+          {/*  • plus de stock → "Victime de son succès"                          */}
+          {/*  • en stock → bouton "Ajouter au panier" (+ champ personnalisation) */}
           {produit.stock < 1 ? (
             <p className="text-center font-semibold text-[#B03052] bg-[#F5E6E8] py-4 rounded-xl">
               Victime de son succès 🥲
             </p>
-          ) : !user ? (
-            <div className="bg-[#F5E6E8] rounded-xl p-5 text-center">
-              <p className="text-[#2C2C2C] mb-3">
-                Vous devez avoir un compte pour commander.
-              </p>
-              <a
-                href="/connexion"
-                className="inline-block bg-[#B03052] hover:bg-[#8d2742] text-white px-6 py-3 rounded-xl font-medium transition-colors"
-              >
-                Se connecter pour commander
-              </a>
-            </div>
           ) : (
-            <form action="/api/checkout" method="POST" className="mt-auto">
-              <input type="hidden" name="productId" value={produit.id} />
-
-              {produit.customizable && (
-                <div className="mb-4 bg-[#F5E6E8] rounded-xl p-4">
-                  <label
-                    htmlFor="personnalisation"
-                    className="block text-sm font-semibold text-[#B03052] mb-1.5"
-                  >
-                    ✨ {produit.customization_label || "Votre personnalisation"}
-                  </label>
-                  <input
-                    id="personnalisation"
-                    name="personnalisation"
-                    type="text"
-                    maxLength={30}
-                    required
-                    placeholder="Prénom, message, surnom… (30 car. max)"
-                    className="w-full border border-[#B03052]/40 rounded-lg p-3 text-[#2C2C2C] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#B03052]/40"
-                  />
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="w-full bg-[#B03052] hover:bg-[#8d2742] text-white py-4 rounded-xl text-lg font-medium transition-colors focus:outline-none focus:ring-4 focus:ring-[#B03052]/30"
-              >
-                Commander
-              </button>
-            </form>
+            <BoutonAjouterPanier
+              produit={{
+                id: produit.id,
+                customizable: produit.customizable,
+                customization_label: produit.customization_label,
+              }}
+            />
           )}
         </div>
       </div>

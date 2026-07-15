@@ -22,6 +22,7 @@ import "./globals.css"; // la feuille de style globale (Tailwind v4)
 // Le "@/..." est un raccourci vers la racine du projet.
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { CartProvider } from "@/components/CartProvider";
 
 // --- POLICES ----------------------------------------------------------------
 // Playfair Display (serif) → pour les titres.
@@ -60,12 +61,17 @@ export default function RootLayout({
     // On accroche les 2 variables de police sur le <html> pour les rendre
     // disponibles partout ; le branchement final se fait dans globals.css.
     <html lang="fr" className={`${playfair.variable} ${nunito.variable}`}>
-      {/* font-sans applique Nunito par défaut. Le fond crème et la couleur   */}
-      {/* du texte sont posés ici (sur le body) → valables pour toutes pages. */}
+      {/* font-sans applique Nunito par défaut. Le FOND et la COULEUR du texte */}
+      {/* sont désormais gérés dans globals.css (variable --page-bg), pour     */}
+      {/* avoir un seul endroit à modifier. On ne les met donc plus ici.       */}
       <body className="font-sans">
-        <Header />        {/* menu, affiché en haut de chaque page          */}
-        {children}        {/* ← ici s'insère la page en cours                */}
-        <Footer />        {/* pied de page, affiché en bas de chaque page    */}
+        {/* CartProvider enveloppe tout → le panier est accessible partout   */}
+        {/* (icône du menu, bouton Ajouter, page panier).                    */}
+        <CartProvider>
+          <Header />        {/* menu, affiché en haut de chaque page          */}
+          {children}        {/* ← ici s'insère la page en cours                */}
+          <Footer />        {/* pied de page, affiché en bas de chaque page    */}
+        </CartProvider>
       </body>
     </html>
   );

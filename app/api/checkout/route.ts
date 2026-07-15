@@ -1,99 +1,166 @@
 // ============================================================================
-//  Route API — Création d'une session Stripe Checkout
-//  EMPLACEMENT dans ton projet : app/api/checkout/route.ts
+//  Route API — PAIEMENT DU PANIER COMPLET (plusieurs articles + frais de port)
+//  ----------------------------------------------------------------------------
+//  EMPLACEMENT EXACT :  app/api/checkout/route.ts
 //
-//  ⭐ La personnalisation est maintenant saisie SUR TA FICHE PRODUIT (ton site),
-//  plus sur la page Stripe → tu contrôles totalement son affichage. On la
-//  transmet ensuite à Stripe : elle apparaît sur le récapitulatif de paiement
-//  ET on la stocke (metadata) pour la page de confirmation.
-//
-//  ⚠️ .env.local : STRIPE_SECRET_KEY, NEXT_PUBLIC_SITE_URL (adresse -3000.app…)
+//  Quand la cliente clique « Payer » (page /panier), ce code :
+//   1. vérifie qu'elle est connectée,
+//   2. relit les VRAIS prix des produits dans Supabase (jamais ceux du navigateur),
+//   3. calcule les frais de port (barème Shop2Shop),
+//   4. enregistre la commande (statut « en_attente »),
+//   5. crée la page de paiement Stripe et renvoie son adresse.
+//  ⚠️ .env.local : STRIPE_SECRET_KEY, NEXT_PUBLIC_SITE_URL, SUPABASE_SERVICE_ROLE_KEY
 // ============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { supabase } from "@/lib/supabase"; // client Supabase (lecture publique)
-import { createSupabaseServer } from "@/lib/supabase-server"; // pour vérifier la connexion
+import { supabase } from "@/lib/supabase";                    // lecture publique des produits
+import { createSupabaseServer } from "@/lib/supabase-server"; // qui est connecté ?
+import { createSupabaseAdmin } from "@/lib/supabase-admin";   // écrire la commande
+import { calculerFraisDePort } from "@/lib/livraison";        // ton calcul de frais de port
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
+// Forme d'un article envoyé par le panier : id produit + quantité + perso éventuelle.
+type ArticlePanier = { id: string; quantity: number; personnalisation: string | null };
+
 export async function POST(request: NextRequest) {
-  // 🔒 SÉCURITÉ : achat RÉSERVÉ aux comptes connectés. Même si quelqu'un
-  //    tentait d'envoyer une commande sans passer par le bouton du site, on
-  //    refuse et on le renvoie vers la page de connexion.
+  // 🔒 1) L'acheteuse est-elle connectée ?
   const authClient = await createSupabaseServer();
-  const {
-    data: { user },
-  } = await authClient.auth.getUser();
+  const { data: { user } } = await authClient.auth.getUser();
   if (!user) {
-    return new NextResponse(null, { status: 303, headers: { Location: "/connexion" } });
+    // 401 = non autorisée → le bouton du panier redirigera vers /connexion.
+    return NextResponse.json({ error: "connexion" }, { status: 401 });
   }
 
-  // 1) Lire l'id du produit envoyé par le bouton "Commander".
-  const formData = await request.formData();
-  const productId = formData.get("productId") as string;
+  // 2) Lire le panier envoyé par le bouton « Payer ».
+  let items: ArticlePanier[] = [];
+  try {
+    const body = await request.json();
+    items = Array.isArray(body.items) ? body.items : [];
+  } catch {
+    return NextResponse.json({ error: "Panier illisible" }, { status: 400 });
+  }
+  if (items.length === 0) {
+    return NextResponse.json({ error: "Panier vide" }, { status: 400 });
+  }
 
-  // 2) Lire le vrai produit dans Supabase (prix + stock + personnalisable).
-  const { data: produit, error } = await supabase
+  // 3) Relire les VRAIS produits dans Supabase (prix, stock, poids, perso).
+  const ids = [...new Set(items.map((i) => i.id))]; // liste des id, sans doublon
+  const { data: produits, error } = await supabase
     .from("products")
-    .select("name, price, stock, customizable")
-    .eq("id", productId)
+    .select("id, name, price, stock, weight, customizable")
+    .in("id", ids);
+
+  if (error || !produits) {
+    return NextResponse.json({ error: "Lecture des produits impossible" }, { status: 500 });
+  }
+
+  const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
+  const articlesCommande: {
+    id: string; nom: string; quantite: number; prix_unitaire: number; personnalisation: string | null;
+  }[] = [];
+  let sousTotalCentimes = 0;
+  let poidsTotal = 0;
+
+  // On parcourt chaque article du panier.
+  for (const item of items) {
+    const p = produits.find((x) => x.id === item.id);
+    if (!p) {
+      return NextResponse.json({ error: "Produit inconnu dans le panier" }, { status: 400 });
+    }
+
+    const quantite = Math.max(1, Math.min(Number(item.quantity) || 1, 99)); // quantité bornée 1→99
+
+    // 🔒 Stock : on refuse si la quantité dépasse le stock.
+    if (p.stock < quantite) {
+      return NextResponse.json({ error: `Stock insuffisant : ${p.name}` }, { status: 409 });
+    }
+
+    // Personnalisation gardée uniquement si le produit est personnalisable (≤30 car.).
+    let perso: string | null = null;
+    if (p.customizable) {
+      perso = (item.personnalisation ?? "").trim().slice(0, 30) || null;
+    }
+
+    const prixUnitaireCentimes = Math.round(Number(p.price) * 100); // euros → centimes
+    sousTotalCentimes += prixUnitaireCentimes * quantite;
+    poidsTotal += Number(p.weight) * quantite;
+
+    line_items.push({
+      quantity: quantite,
+      price_data: {
+        currency: "eur",
+        unit_amount: prixUnitaireCentimes,
+        product_data: {
+          name: p.name,
+          ...(perso ? { description: `Personnalisation : ${perso}` } : {}),
+        },
+      },
+    });
+
+    articlesCommande.push({
+      id: p.id, nom: p.name, quantite, prix_unitaire: Number(p.price), personnalisation: perso,
+    });
+  }
+
+  // 4) Frais de port (barème Shop2Shop + livraison offerte dès 80 €).
+  const sousTotalEuros = sousTotalCentimes / 100;
+  const fraisPortEuros = calculerFraisDePort(poidsTotal, sousTotalEuros);
+  const fraisPortCentimes = Math.round(fraisPortEuros * 100);
+  const totalEuros = sousTotalEuros + fraisPortEuros;
+
+  // 5) Enregistrer la commande AVANT le paiement (statut « en_attente »).
+  const admin = createSupabaseAdmin();
+  const { data: commande, error: errCmd } = await admin
+    .from("orders")
+    .insert({
+      statut: "en_attente",
+      user_id: user.id,
+      email: user.email,
+      articles: articlesCommande,
+      poids_total: poidsTotal,
+      sous_total: sousTotalEuros,
+      frais_port: fraisPortEuros,
+      total: totalEuros,
+    })
+    .select("id")
     .single();
 
-  if (error || !produit) {
-    return NextResponse.json({ error: "Produit inconnu" }, { status: 400 });
+  if (errCmd || !commande) {
+    return NextResponse.json({ error: "Création de la commande impossible" }, { status: 500 });
   }
 
-  // 🔒 Sécurité STOCK : refuser si plus de stock.
-  if (produit.stock < 1) {
-    return NextResponse.json({ error: "Produit en rupture de stock" }, { status: 400 });
-  }
-
-  // 3) Lire la personnalisation envoyée par la fiche produit.
-  //    On ne la garde QUE si le produit est réellement personnalisable, et on
-  //    coupe à 30 caractères par sécurité (au cas où le champ serait contourné).
-  let personnalisation: string | null = null;
-  if (produit.customizable) {
-    const saisie = (formData.get("personnalisation") as string | null) ?? "";
-    personnalisation = saisie.trim().slice(0, 30) || null;
-  }
-
+  // 6) Créer la page de paiement Stripe.
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  // Stripe attend un montant en CENTIMES → euros × 100, arrondi.
-  const montantCentimes = Math.round(Number(produit.price) * 100);
-
-  // 4) Créer la session de paiement Stripe.
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
-    line_items: [
+    line_items,
+    customer_email: user.email,
+    phone_number_collection: { enabled: true },
+    shipping_address_collection: { allowed_countries: ["FR", "BE", "LU", "CH", "MC"] },
+    shipping_options: [
       {
-        price_data: {
-          currency: "eur",
-          product_data: {
-            name: produit.name,
-            // Si personnalisation : on l'affiche sous le produit sur Stripe.
-            ...(personnalisation
-              ? { description: `Personnalisation : ${personnalisation}` }
-              : {}),
+        shipping_rate_data: {
+          type: "fixed_amount",
+          fixed_amount: { amount: fraisPortCentimes, currency: "eur" },
+          display_name: fraisPortCentimes === 0 ? "Livraison offerte 🎁" : "Chronopost Shop2Shop (point relais)",
+          delivery_estimate: {
+            minimum: { unit: "business_day", value: 2 },
+            maximum: { unit: "business_day", value: 4 },
           },
-          unit_amount: montantCentimes,
         },
-        quantity: 1,
       },
     ],
-    // metadata : infos attachées à la commande.
-    //  • productId → sert au WEBHOOK pour savoir quel produit décrémenter.
-    //  • personnalisation → sert à la page de confirmation.
-    metadata: {
-      productId,
-      ...(personnalisation ? { personnalisation } : {}),
-    },
-
-    // {CHECKOUT_SESSION_ID} est remplacé par Stripe par l'id de la session.
+    client_reference_id: commande.id,
+    metadata: { order_id: commande.id },
     success_url: `${siteUrl}/commande-confirmee?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${siteUrl}/#boutique`,
+    cancel_url: `${siteUrl}/panier`,
   });
 
-  // 5) Rediriger vers la page de paiement Stripe.
-  return NextResponse.redirect(session.url as string, { status: 303 });
+  // 7) Mémoriser le numéro de session Stripe sur la commande.
+  await admin.from("orders").update({ stripe_session_id: session.id }).eq("id", commande.id);
+
+  // 8) Renvoyer l'adresse de paiement au bouton (qui redirige le navigateur).
+  return NextResponse.json({ url: session.url });
 }

@@ -1,63 +1,75 @@
 // ============================================================================
-//  Route API — Webhook Stripe (décrément du stock après un paiement réussi)
-//  EMPLACEMENT dans ton projet : app/api/webhooks/stripe/route.ts
-//
-//  Stripe appelle CETTE route automatiquement à chaque paiement. On vérifie
-//  que l'appel vient bien de Stripe (signature), puis on baisse le stock du
-//  produit acheté.
-//
-//  ⚠️ .env.local doit contenir :
-//    STRIPE_WEBHOOK_SECRET=whsec_...   (donné par Stripe quand tu crées le webhook)
+//  WEBHOOK STRIPE — commande payée : mise à jour + stock + EMAILS (n° + date)
+//  EMPLACEMENT EXACT :  app/api/webhooks/stripe/route.ts
 // ============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
+import { envoyerEmailsConfirmation } from "@/lib/email";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
 export async function POST(request: NextRequest) {
-  // 1) Lire le corps BRUT + la signature Stripe (indispensable pour vérifier).
   const body = await request.text();
   const signature = request.headers.get("stripe-signature") as string;
 
-  // 2) Vérifier que l'événement vient VRAIMENT de Stripe (sécurité anti-fraude).
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET as string
-    );
+    event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET as string);
   } catch {
     return NextResponse.json({ error: "Signature invalide" }, { status: 400 });
   }
 
-  // 3) On ne réagit qu'aux paiements RÉUSSIS.
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
-    const productId = session.metadata?.productId;
+    const orderId = session.metadata?.order_id ?? session.client_reference_id;
 
-    if (productId) {
+    if (orderId) {
       const admin = createSupabaseAdmin();
 
-      // Lire le stock actuel, puis le baisser de 1 (jamais en dessous de 0).
-      const { data: produit } = await admin
-        .from("products")
-        .select("stock")
-        .eq("id", productId)
+      const { data: commande } = await admin
+        .from("orders")
+        .select("statut, articles, sous_total, frais_port, total, created_at")
+        .eq("id", orderId)
         .single();
 
-      if (produit && produit.stock > 0) {
-        await admin
-          .from("products")
-          .update({ stock: produit.stock - 1 })
-          .eq("id", productId);
+      if (commande && commande.statut !== "payee") {
+        await admin.from("orders").update({
+          statut: "payee",
+          email: session.customer_details?.email ?? null,
+          nom_client: session.customer_details?.name ?? null,
+          telephone: session.customer_details?.phone ?? null,
+          adresse_livraison: session.customer_details?.address ?? null,
+        }).eq("id", orderId);
+
+        const articles = (commande.articles ?? []) as { id: string; quantite: number }[];
+        for (const a of articles) {
+          const { data: p } = await admin.from("products").select("stock").eq("id", a.id).single();
+          if (p) {
+            await admin.from("products").update({ stock: Math.max(0, p.stock - a.quantite) }).eq("id", a.id);
+          }
+        }
+
+        try {
+          await envoyerEmailsConfirmation({
+            id: orderId,
+            createdAt: commande.created_at,
+            emailClient: session.customer_details?.email ?? null,
+            nomClient: session.customer_details?.name ?? null,
+            telephone: session.customer_details?.phone ?? null,
+            adresse: (session.customer_details?.address ?? null) as Record<string, string> | null,
+            articles: commande.articles,
+            sousTotal: commande.sous_total,
+            fraisPort: commande.frais_port,
+            total: commande.total,
+          });
+        } catch (e) {
+          console.error("Envoi des emails de confirmation échoué:", e);
+        }
       }
     }
   }
 
-  // 4) Toujours répondre 200 à Stripe (sinon il considère l'envoi en échec et
-  //    réessaiera).
   return NextResponse.json({ received: true });
 }

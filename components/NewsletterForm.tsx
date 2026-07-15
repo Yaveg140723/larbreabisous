@@ -1,9 +1,6 @@
 // ============================================================================
 //  COMPOSANT NewsletterForm — champ d'inscription à la newsletter
-//  EMPLACEMENT dans ton projet : components/NewsletterForm.tsx
-//
-//  "use client" : on gère la saisie + un message de confirmation SANS recharger
-//  la page (envoi via fetch). La case de consentement est OBLIGATOIRE (RGPD).
+//  EMPLACEMENT EXACT :  components/NewsletterForm.tsx
 // ============================================================================
 
 "use client";
@@ -20,7 +17,6 @@ export default function NewsletterForm() {
     setMessage(null);
     setChargement(true);
 
-    // On envoie l'email à notre route serveur.
     const res = await fetch("/api/newsletter/subscribe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -58,8 +54,6 @@ export default function NewsletterForm() {
         </button>
       </div>
 
-      {/* Consentement RGPD : la case est "required" → impossible de s'inscrire */}
-      {/* sans l'avoir cochée.                                                  */}
       <label className="flex gap-2 items-start text-xs text-pink-100">
         <input type="checkbox" required className="mt-0.5" />
         <span>
@@ -68,7 +62,6 @@ export default function NewsletterForm() {
         </span>
       </label>
 
-      {/* Message de confirmation ou d'erreur (affiché après l'envoi). */}
       {message && (
         <p className={`text-sm ${message.ok ? "text-green-200" : "text-red-200"}`}>
           {message.texte}
