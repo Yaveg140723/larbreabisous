@@ -127,7 +127,8 @@ export async function POST(request: NextRequest) {
     .select("id")
     .single();
 
-  if (errCmd || !commande) {
+   if (errCmd || !commande) {
+    console.error("Erreur insertion commande:", errCmd);
     return NextResponse.json({ error: "Création de la commande impossible" }, { status: 500 });
   }
 
