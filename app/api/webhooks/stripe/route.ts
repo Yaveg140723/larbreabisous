@@ -7,7 +7,7 @@
 //  Stripe appelle cette route automatiquement quand un paiement est terminé.
 //  Cette route vérifie la signature Stripe, retrouve la commande concernée,
 //  confirme qu’elle est payée, met à jour son statut, décrémente le stock,
-//  puis envoie les emails de confirmation.
+//  enregistre un mouvement de stock, puis envoie les emails de confirmation.
 //
 //  IMPORTANT SÉCURITÉ :
 //  On ne confirme jamais une commande depuis la page de retour navigateur.
@@ -19,18 +19,17 @@ import Stripe from "stripe";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 import { envoyerEmailsConfirmation } from "@/lib/email";
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+function getRequiredEnv(name: string) {
+  const value = process.env[name];
 
-if (!stripeSecretKey) {
-  throw new Error("STRIPE_SECRET_KEY manquante.");
+  if (!value) {
+    throw new Error(`${name} manquante.`);
+  }
+
+  return value;
 }
 
-if (!stripeWebhookSecret) {
-  throw new Error("STRIPE_WEBHOOK_SECRET manquante.");
-}
-
-const stripe = new Stripe(stripeSecretKey);
+const stripe = new Stripe(getRequiredEnv("STRIPE_SECRET_KEY"));
 
 type ArticleCommande = {
   id: string;
@@ -49,7 +48,11 @@ export async function POST(request: NextRequest) {
   let event: Stripe.Event;
 
   try {
-    event = stripe.webhooks.constructEvent(body, signature, stripeWebhookSecret);
+    event = stripe.webhooks.constructEvent(
+      body,
+      signature,
+      getRequiredEnv("STRIPE_WEBHOOK_SECRET")
+    );
   } catch {
     return NextResponse.json({ error: "Signature Stripe invalide" }, { status: 400 });
   }
@@ -122,17 +125,13 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    // Nouveau stock après la vente.
-    // On évite de descendre sous 0 par sécurité.
-      const stockApresVente = Math.max(0, Number(produit.stock) - article.quantite);
+    const stockApresVente = Math.max(0, Number(produit.stock) - article.quantite);
 
     await admin
       .from("products")
       .update({ stock: stockApresVente })
       .eq("id", article.id);
 
-    // Historique de stock : une ligne par produit vendu.
-    // quantity_change est négatif car il s’agit d’une sortie de stock.
     await admin.from("stock_movements").insert({
       product_id: article.id,
       order_id: orderId,
@@ -140,7 +139,7 @@ export async function POST(request: NextRequest) {
       quantity_change: -article.quantite,
       stock_after: stockApresVente,
       note: `Vente Stripe - commande ${orderId}`,
-    });   
+    });
   }
 
   try {
