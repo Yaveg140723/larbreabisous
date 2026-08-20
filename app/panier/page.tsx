@@ -1,70 +1,103 @@
 // ============================================================================
-//  PAGE PANIER — liste des articles, frais de port, et BOUTON DE PAIEMENT
+//  PAGE PANIER — liste des articles, frais de port, CGV et paiement
 //  ----------------------------------------------------------------------------
-//  EMPLACEMENT EXACT :  app/panier/page.tsx
+//  EMPLACEMENT EXACT : app/panier/page.tsx
 //
-//  NOUVEAUTÉ vs ta version : le message « 🔜 Prochaine étape » est remplacé par
-//  un vrai bouton « Payer ma commande » qui envoie le panier à /api/checkout
-//  puis redirige vers la page de paiement Stripe.
+//  À QUOI SERT CE FICHIER ?
+//  Cette page affiche le panier de la cliente, recharge les vrais produits depuis
+//  Supabase, calcule le sous-total et les frais de port, vérifie si la cliente
+//  est connectée, impose l’acceptation des CGV / politique de confidentialité,
+//  puis envoie le panier à /api/checkout.
+//
+//  IMPORTANT SÉCURITÉ :
+//  Les montants affichés ici servent à l’expérience utilisateur.
+//  La route serveur /api/checkout recalcule tout avant Stripe.
 // ============================================================================
 
-"use client"; // ← page « navigateur » (elle réagit aux clics, gère un état…)
+"use client";
 
 import { useEffect, useState } from "react";
 import { useCart } from "@/components/CartProvider";
 import { supabase } from "@/lib/supabase";
 import { SEUIL_FRANCO, tarifShop2Shop, calculerFraisDePort } from "@/lib/livraison";
 
-// Petit outil : transforme un nombre (ex. 25) en « 25,00 € » à la française.
 function formatPrix(euros: number | string) {
-  return Number(euros).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+  return Number(euros).toLocaleString("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+  });
 }
 
 export default function Panier() {
-  // On récupère le panier + les fonctions pour modifier/retirer un article.
   const { items, updateQuantity, removeItem } = useCart();
 
-  // « produits » = les infos (nom, prix, poids, photo) des produits du panier.
   const [produits, setProduits] = useState<
     Record<string, { name: string; price: number | string; weight: number; image_url: string | null }>
   >({});
 
-  // ── NOUVEAU : deux « états » pour gérer le paiement ──
   const [paiementEnCours, setPaiementEnCours] = useState(false);
   const [erreurPaiement, setErreurPaiement] = useState<string | null>(null);
+  const [estConnecte, setEstConnecte] = useState(false);
+  const [verificationConnexion, setVerificationConnexion] = useState(true);
+  const [conditionsAcceptees, setConditionsAcceptees] = useState(false);
 
-  // Une « clé » listant les id du panier (triés) : sert à recharger les infos
-  // produits seulement quand le contenu du panier change vraiment.
   const idsKey = [...new Set(items.map((i) => i.id))].sort().join(",");
 
-  // useEffect = « quand idsKey change, va (re)lire les produits dans Supabase ».
+  // Vérifie la connexion en appelant une route serveur.
+  // C’est plus fiable que supabase.auth.getSession() côté navigateur dans ton projet.
+  useEffect(() => {
+    async function verifierConnexion() {
+      try {
+        const res = await fetch("/api/auth/status", { cache: "no-store" });
+        const data = await res.json();
+
+        setEstConnecte(Boolean(data.estConnecte));
+      } catch {
+        setEstConnecte(false);
+      } finally {
+        setVerificationConnexion(false);
+      }
+    }
+
+    verifierConnexion();
+  }, []);
+
+  // Recharge les informations produit depuis Supabase pour afficher le panier.
   useEffect(() => {
     async function charger() {
       const ids = idsKey ? idsKey.split(",") : [];
+
       if (ids.length === 0) {
         setProduits({});
         return;
       }
+
       const { data } = await supabase
         .from("products")
         .select("id, name, price, weight, image_url")
         .in("id", ids);
 
       const map: Record<string, { name: string; price: number | string; weight: number; image_url: string | null }> = {};
+
       (data ?? []).forEach((p) => {
-        map[p.id] = { name: p.name, price: p.price, weight: p.weight, image_url: p.image_url };
+        map[p.id] = {
+          name: p.name,
+          price: p.price,
+          weight: p.weight,
+          image_url: p.image_url,
+        };
       });
+
       setProduits(map);
     }
+
     charger();
   }, [idsKey]);
 
-  // « lignes » = chaque article du panier enrichi de ses infos produit.
   const lignes = items
     .map((it, index) => ({ ...it, index, produit: produits[it.id] }))
     .filter((l) => l.produit);
 
-  // Calculs du récapitulatif :
   const sousTotal = lignes.reduce((s, l) => s + Number(l.produit.price) * l.quantity, 0);
   const poidsTotal = lignes.reduce((s, l) => s + Number(l.produit.weight) * l.quantity, 0);
 
@@ -76,43 +109,57 @@ export default function Panier() {
   const restant = Math.max(0, SEUIL_FRANCO - sousTotal);
   const progression = Math.min(100, Math.round((sousTotal / SEUIL_FRANCO) * 100));
 
-  // ── NOUVEAU : fonction appelée au clic sur « Payer ma commande ». ──
   async function payer() {
     setErreurPaiement(null);
+
+    if (!conditionsAcceptees) {
+      setErreurPaiement("Veuillez accepter les CGV et la politique de confidentialité avant de continuer.");
+      return;
+    }
+
+    if (!estConnecte) {
+      window.location.href = "/connexion";
+      return;
+    }
+
     setPaiementEnCours(true);
+
     try {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items }), // on envoie { id, quantity, personnalisation }
+
+        // On envoie le panier + la confirmation CGV.
+        // Le serveur vérifie la connexion et recalcule tout avant Stripe.
+        body: JSON.stringify({ items, conditionsAcceptees }),
       });
 
-      // 401 = pas connectée → l'achat est réservé aux comptes → connexion.
+      const data = await res.json();
+
+      if (res.ok && data.url) {
+        window.location.href = data.url;
+        return;
+      }
+
       if (res.status === 401) {
         window.location.href = "/connexion";
         return;
       }
 
-      const data = await res.json();
-      if (res.ok && data.url) {
-        window.location.href = data.url; // → page de paiement Stripe
-      } else {
-        setErreurPaiement(data.error || "Le paiement n'a pas pu démarrer.");
-        setPaiementEnCours(false);
-      }
+      setErreurPaiement(data.error || "Le paiement n'a pas pu démarrer.");
+      setPaiementEnCours(false);
     } catch {
       setErreurPaiement("Le paiement n'a pas pu démarrer.");
       setPaiementEnCours(false);
     }
   }
 
-  // ── Cas « panier vide ». ──
   if (items.length === 0) {
     return (
       <main className="max-w-3xl mx-auto px-4 sm:px-8 py-24 text-center">
         <h1 className="text-4xl font-serif text-[#B03052] mb-6">Votre panier est vide 🌸</h1>
         <a
-          href="/#boutique"
+          href="/boutique"
           className="inline-block bg-[#B03052] hover:bg-[#8d2742] text-white px-8 py-4 rounded-2xl text-lg shadow-lg transition-colors"
         >
           Découvrir la boutique
@@ -121,12 +168,10 @@ export default function Panier() {
     );
   }
 
-  // ── Cas normal : au moins un article. ──
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-8 py-16">
       <h1 className="text-4xl md:text-5xl font-serif text-[#B03052] mb-8">Mon panier</h1>
 
-      {/* Liste des articles */}
       <div className="space-y-4">
         {lignes.map((l) => (
           <div key={l.index} className="bg-white rounded-2xl shadow-md p-4 flex flex-wrap gap-4 items-center">
@@ -179,7 +224,6 @@ export default function Panier() {
         ))}
       </div>
 
-      {/* ✨ Bandeau « livraison offerte » (franco de port) */}
       <div className="mt-8 rounded-2xl p-5 border border-[#E8CBA8] shadow-sm bg-gradient-to-r from-[#FBEEF2] via-[#FDF6EF] to-[#F7E9DE]">
         {francoAtteint ? (
           <div className="text-center">
@@ -206,7 +250,6 @@ export default function Panier() {
         )}
       </div>
 
-      {/* Récapitulatif + bouton de paiement */}
       <div className="bg-white rounded-2xl shadow-md p-6 mt-4">
         <div className="flex justify-between mb-2 text-gray-600">
           <span>Poids total</span>
@@ -241,13 +284,38 @@ export default function Panier() {
           📦 Livraison en point relais Pickup (Chronopost Shop2Shop), sous 2 à 4 jours.
         </p>
 
-        {/* ── NOUVEAU : bouton de paiement ── */}
+        <label className="mt-4 flex gap-3 rounded-xl border border-[#F3D9E1] bg-[#FFF8FA] p-4 text-sm text-[#2C2C2C]">
+          <input
+            type="checkbox"
+            checked={conditionsAcceptees}
+            onChange={(event) => setConditionsAcceptees(event.target.checked)}
+            className="mt-1"
+          />
+          <span>
+            J’accepte les{" "}
+            <a href="/cgv" className="font-semibold text-[#B03052] hover:underline">
+              CGV
+            </a>{" "}
+            et la{" "}
+            <a href="/politique-confidentialite" className="font-semibold text-[#B03052] hover:underline">
+              politique de confidentialité
+            </a>
+            .
+          </span>
+        </label>
+
         <button
           onClick={payer}
-          disabled={paiementEnCours}
+          disabled={paiementEnCours || !conditionsAcceptees || verificationConnexion}
           className="w-full mt-4 bg-[#B03052] hover:bg-[#8d2742] text-white py-4 rounded-xl text-lg font-medium transition-colors disabled:opacity-60 focus:outline-none focus:ring-4 focus:ring-[#B03052]/30"
         >
-          {paiementEnCours ? "Redirection vers le paiement…" : "Payer ma commande"}
+          {paiementEnCours
+            ? "Redirection vers le paiement…"
+            : verificationConnexion
+            ? "Vérification du compte…"
+            : estConnecte
+            ? "Payer ma commande"
+            : "Se connecter pour commander"}
         </button>
 
         {erreurPaiement && (

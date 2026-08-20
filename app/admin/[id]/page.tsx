@@ -84,25 +84,68 @@ export default async function ModifierProduit({
           <input id="weight" name="weight" type="number" min="0" required defaultValue={produit.weight} className={champClass} />
         </div>
 
-        {/* Photo : on montre l'actuelle, et on propose d'en choisir une nouvelle. */}
-        <div className="sm:col-span-2">
-          <label className={labelClass}>Photo actuelle</label>
-          {produit.image_url ? (
-            <img src={produit.image_url} alt={produit.name} className="w-32 h-32 object-cover rounded-xl mb-3" />
-          ) : (
-            <p className="text-gray-500 text-sm mb-3">Aucune photo pour l'instant.</p>
-          )}
-          <label htmlFor="image" className="block text-sm font-semibold text-[#2C2C2C] mb-1.5">
-            Changer la photo (optionnel)
-          </label>
-          <input
-            id="image"
-            name="image"
-            type="file"
-            accept="image/*"
-            className="w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-[#F5E6E8] file:text-[#B03052] file:font-medium file:px-4 file:py-2 file:cursor-pointer"
+       {/* ── PHOTOS PRODUIT ────────────────────────────────────────────── */}   
+       {/* 
+       Cette section permet de voir les photos déjà enregistrées pour le produit,
+       puis d’en envoyer de nouvelles si besoin.
+
+       Important :
+       - Photo 1 correspond à la colonne image_url.
+       - Photo 2 correspond à image_url_2.
+       - Photo 3 correspond à image_url_3.
+       - Photo 4 correspond à image_url_4.
+
+      Si aucun nouveau fichier n’est choisi, la route de mise à jour doit conserver
+      l’ancienne photo existante.
+      */}
+      <div className="sm:col-span-2">
+      <label className={labelClass}>Photos actuelles</label>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+      {[
+        produit.image_url,
+        produit.image_url_2,
+        produit.image_url_3,
+        produit.image_url_4,
+      ].map((url, index) => (
+      <div key={index} className="rounded-xl border border-gray-200 p-2">
+        {url ? (
+          <img
+            src={url}
+            alt={`${produit.name} - photo ${index + 1}`}
+            className="w-full aspect-square object-cover rounded-lg"
           />
-        </div>
+        ) : (
+          <div className="w-full aspect-square rounded-lg bg-[#F5E6E8] flex items-center justify-center text-xs text-[#B03052] text-center px-2">
+            Aucune photo
+          </div>
+        )}
+
+        <p className="text-xs text-center text-gray-500 mt-2">
+          Photo {index + 1}
+        </p>
+      </div>
+    ))}
+  </div>
+
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    {[1, 2, 3, 4].map((numero) => (
+      <div key={numero}>
+        <label htmlFor={`image_${numero}`} className={labelClass}>
+          Remplacer photo {numero} {numero === 1 ? "(principale)" : "(optionnelle)"}
+        </label>
+
+        <input
+          id={`image_${numero}`}
+          name={`image_${numero}`}
+          type="file"
+          accept="image/*"
+          className="w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-[#F5E6E8] file:text-[#B03052] file:font-medium file:px-4 file:py-2 file:cursor-pointer"
+        />
+      </div>
+    ))}
+  </div>
+</div>
 
         <div className="sm:col-span-2 flex items-center gap-2">
           <input id="customizable" name="customizable" type="checkbox" defaultChecked={produit.customizable} className="w-4 h-4" />

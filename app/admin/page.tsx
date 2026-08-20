@@ -96,17 +96,31 @@ export default async function Admin() {
               placeholder="ex : 50" className={champClass} />
           </div>
 
-          <div>
-            <label htmlFor="image" className={labelClass}>Photo du produit</label>
-            <input
-              id="image"
-              name="image"
-              type="file"
-              accept="image/*"
-              className="w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-[#F5E6E8] file:text-[#B03052] file:font-medium file:px-4 file:py-2 file:cursor-pointer"
-            />
-          </div>
+        {/* ── PHOTOS PRODUIT ────────────────────────────────────────────── */}
+        {/* 
+        On permet à l’administratrice d’ajouter jusqu’à 4 photos.
+        Photo 1 = photo principale du produit.
+        Photos 2, 3 et 4 = photos complémentaires affichées en miniatures.
 
+        Les noms "image_1", "image_2", "image_3", "image_4" doivent correspondre
+        exactement à ce que la route app/api/admin/create-product/route.ts attend.
+        */}
+        {[1, 2, 3, 4].map((numero) => (
+        <div key={numero}>
+        <label htmlFor={`image_${numero}`} className={labelClass}>
+         Photo {numero} {numero === 1 ? "(principale)" : "(optionnelle)"}
+         </label>
+
+        <input
+        id={`image_${numero}`}
+        name={`image_${numero}`}
+        type="file"
+        accept="image/*"
+        className="w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-[#F5E6E8] file:text-[#B03052] file:font-medium file:px-4 file:py-2 file:cursor-pointer"
+        />
+        </div>
+        ))}
+          
           <div className="sm:col-span-2 flex items-center gap-2">
             <input id="customizable" name="customizable" type="checkbox" className="w-4 h-4" />
             <label htmlFor="customizable" className="font-medium text-[#2C2C2C]">

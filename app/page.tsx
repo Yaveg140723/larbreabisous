@@ -73,7 +73,7 @@ export default async function Home() {
         {/* Bouton = lien vers la boutique. focus:ring = anneau visible au    */}
         {/* clavier → accessibilité pour qui n'utilise pas la souris.         */}
         <a
-          href="#boutique"
+          href="/boutique"
           className="inline-block bg-[#B03052] hover:bg-[#8d2742] text-white px-8 sm:px-10 py-4 rounded-2xl text-lg shadow-lg transition-colors focus:outline-none focus:ring-4 focus:ring-[#B03052]/30"
         >
           Découvrir la Boutique
