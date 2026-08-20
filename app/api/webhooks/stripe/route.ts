@@ -122,10 +122,25 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
+    // Nouveau stock après la vente.
+    // On évite de descendre sous 0 par sécurité.
+      const stockApresVente = Math.max(0, Number(produit.stock) - article.quantite);
+
     await admin
       .from("products")
-      .update({ stock: Math.max(0, Number(produit.stock) - article.quantite) })
+      .update({ stock: stockApresVente })
       .eq("id", article.id);
+
+    // Historique de stock : une ligne par produit vendu.
+    // quantity_change est négatif car il s’agit d’une sortie de stock.
+    await admin.from("stock_movements").insert({
+      product_id: article.id,
+      order_id: orderId,
+      movement_type: "sale",
+      quantity_change: -article.quantite,
+      stock_after: stockApresVente,
+      note: `Vente Stripe - commande ${orderId}`,
+    });   
   }
 
   try {
