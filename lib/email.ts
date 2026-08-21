@@ -1,6 +1,18 @@
 // ============================================================================
-//  ENVOI DES EMAILS DE CONFIRMATION — via Brevo (avec n° + date/heure)
-//  EMPLACEMENT EXACT :  lib/email.ts
+//  ENVOI DES EMAILS DE CONFIRMATION — client + administratrice
+//  ----------------------------------------------------------------------------
+//  EMPLACEMENT EXACT : lib/email.ts
+//
+//  À QUOI SERT CE FICHIER ?
+//  Ce fichier prépare et envoie les emails après paiement Stripe confirmé.
+//  Il est appelé par le webhook Stripe : app/api/webhooks/stripe/route.ts
+//
+//  Emails envoyés :
+//  - un email client avec le récapitulatif de commande
+//  - un email boutique/admin pour préparer la commande
+//
+//  IMPORTANT SÉCURITÉ :
+//  Les textes venant du client sont échappés avant insertion dans le HTML.
 // ============================================================================
 
 type ArticleCommande = {
@@ -23,51 +35,76 @@ export type DonneesCommande = {
   total: number;
 };
 
+function escapeHTML(value: string | null | undefined) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 function formatPrix(euros: number) {
-  return Number(euros).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+  return Number(euros).toLocaleString("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+  });
+}
+
+function formatDate(date: string) {
+  return new Date(date).toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Paris",
+  });
+}
+
+function numeroCommande(id: string) {
+  return id.slice(0, 8).toUpperCase();
+}
+
+function formatAdresseHTML(adresse: Record<string, string> | null) {
+  if (!adresse) return "—";
+
+  return [
+    adresse.line1,
+    adresse.line2,
+    `${adresse.postal_code ?? ""} ${adresse.city ?? ""}`.trim(),
+    adresse.country,
+  ]
+    .filter(Boolean)
+    .map(escapeHTML)
+    .join("<br>");
 }
 
 function lignesArticlesHTML(articles: ArticleCommande[]): string {
   return articles
-    .map(
-      (a) => `
-      <tr>
-        <td style="padding:8px 0;border-bottom:1px solid #eee;">
-          ${a.nom} × ${a.quantite}
-          ${a.personnalisation ? `<br><span style="color:#B03052;font-size:13px;">✨ « ${a.personnalisation} »</span>` : ""}
-        </td>
-        <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;white-space:nowrap;">
-          ${formatPrix(a.prix_unitaire * a.quantite)}
-        </td>
-      </tr>`
-    )
+    .map((article) => {
+      const totalLigne = article.prix_unitaire * article.quantite;
+
+      return `
+        <tr>
+          <td style="padding:10px 0;border-bottom:1px solid #eee;">
+            <strong>${escapeHTML(article.nom)}</strong> × ${article.quantite}
+            ${
+              article.personnalisation
+                ? `<br><span style="color:#B03052;font-size:13px;">✨ Personnalisation : ${escapeHTML(article.personnalisation)}</span>`
+                : ""
+            }
+          </td>
+          <td style="padding:10px 0;border-bottom:1px solid #eee;text-align:right;white-space:nowrap;">
+            ${formatPrix(totalLigne)}
+          </td>
+        </tr>`;
+    })
     .join("");
 }
 
-function corpsHTML(c: DonneesCommande, titre: string, message: string): string {
-  const numero = c.id.slice(0, 8).toUpperCase();
-  const date = new Date(c.createdAt).toLocaleString("fr-FR", {
-    day: "2-digit", month: "long", year: "numeric",
-    hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris",
-  });
-
-  const adresse = c.adresse
-    ? [
-        c.adresse.line1,
-        c.adresse.line2,
-        `${c.adresse.postal_code ?? ""} ${c.adresse.city ?? ""}`.trim(),
-        c.adresse.country,
-      ]
-        .filter(Boolean)
-        .join("<br>")
-    : "—";
-
+function blocTotauxHTML(c: DonneesCommande) {
   return `
-  <div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#2C2C2C;">
-    <h1 style="color:#B03052;font-size:24px;margin-bottom:4px;">${titre}</h1>
-    <p style="font-size:13px;color:#888;margin:0 0 14px;">Commande #${numero} • ${date}</p>
-    <p style="font-size:15px;line-height:1.5;">${message}</p>
-
     <table style="width:100%;border-collapse:collapse;margin:20px 0;">
       ${lignesArticlesHTML(c.articles)}
       <tr>
@@ -79,32 +116,94 @@ function corpsHTML(c: DonneesCommande, titre: string, message: string): string {
         <td style="text-align:right;">${c.fraisPort === 0 ? "Offerts 🎁" : formatPrix(c.fraisPort)}</td>
       </tr>
       <tr>
-        <td style="font-weight:bold;font-size:18px;color:#B03052;padding-top:6px;">Total</td>
-        <td style="font-weight:bold;font-size:18px;color:#B03052;text-align:right;padding-top:6px;">${formatPrix(c.total)}</td>
+        <td style="font-weight:bold;font-size:18px;color:#B03052;padding-top:8px;">Total</td>
+        <td style="font-weight:bold;font-size:18px;color:#B03052;text-align:right;padding-top:8px;">${formatPrix(c.total)}</td>
       </tr>
-    </table>
+    </table>`;
+}
+
+function corpsClientHTML(c: DonneesCommande): string {
+  const numero = numeroCommande(c.id);
+  const date = formatDate(c.createdAt);
+
+  return `
+  <div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;color:#2C2C2C;">
+    <h1 style="color:#B03052;font-size:26px;margin-bottom:4px;">Merci pour votre commande 🎁</h1>
+    <p style="font-size:13px;color:#888;margin:0 0 18px;">Commande #${numero} • ${date}</p>
+
+    <p style="font-size:15px;line-height:1.6;">
+      Bonjour ${escapeHTML(c.nomClient) || "et merci"},<br>
+      Votre paiement a bien été reçu. Nous allons préparer votre création avec soin.
+    </p>
+
+    <div style="background:#FFF8FA;border:1px solid #F3D9E1;border-radius:14px;padding:14px;margin:18px 0;">
+      <strong style="color:#B03052;">Prochaine étape</strong><br>
+      Votre commande va être préparée, puis expédiée en point relais selon les modalités indiquées lors du paiement.
+    </div>
+
+    ${blocTotauxHTML(c)}
 
     <h3 style="color:#B03052;font-size:16px;margin-bottom:4px;">Livraison</h3>
     <p style="font-size:14px;line-height:1.5;margin-top:0;">
-      ${c.nomClient ?? ""}${c.telephone ? ` • ${c.telephone}` : ""}<br>${adresse}
+      ${escapeHTML(c.nomClient)}${c.telephone ? ` • ${escapeHTML(c.telephone)}` : ""}<br>
+      ${formatAdresseHTML(c.adresse)}
     </p>
 
-    <p style="font-size:13px;color:#888;margin-top:24px;">L'Arbre à Bisous — Créations artisanales personnalisées</p>
+    <p style="font-size:13px;color:#888;margin-top:24px;">
+      Merci pour votre confiance 💕<br>
+      L'Arbre à Bisous — Créations artisanales personnalisées
+    </p>
+  </div>`;
+}
+
+function corpsAdminHTML(c: DonneesCommande): string {
+  const numero = numeroCommande(c.id);
+  const date = formatDate(c.createdAt);
+
+  return `
+  <div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;color:#2C2C2C;">
+    <h1 style="color:#B03052;font-size:26px;margin-bottom:4px;">Nouvelle commande à préparer 🎉</h1>
+    <p style="font-size:13px;color:#888;margin:0 0 18px;">Commande #${numero} • ${date}</p>
+
+    <div style="background:#F5E6E8;border-radius:14px;padding:14px;margin:18px 0;">
+      <strong style="color:#B03052;">Client</strong><br>
+      ${escapeHTML(c.nomClient) || "Nom non renseigné"}<br>
+      ${escapeHTML(c.emailClient)}${c.telephone ? ` • ${escapeHTML(c.telephone)}` : ""}
+    </div>
+
+    ${blocTotauxHTML(c)}
+
+    <h3 style="color:#B03052;font-size:16px;margin-bottom:4px;">Adresse de livraison</h3>
+    <p style="font-size:14px;line-height:1.5;margin-top:0;">
+      ${formatAdresseHTML(c.adresse)}
+    </p>
+
+    <p style="font-size:13px;color:#888;margin-top:24px;">
+      Pense à mettre à jour le statut dans Admin → Commandes reçues.
+    </p>
   </div>`;
 }
 
 async function envoyerUnEmail(destinataire: string, sujet: string, html: string) {
+  const apiKey = process.env.BREVO_API_KEY;
+  const senderEmail = process.env.BREVO_SENDER_EMAIL;
+
+  if (!apiKey || !senderEmail) {
+    console.error("Configuration Brevo manquante.");
+    return;
+  }
+
   const res = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
     headers: {
-      "api-key": process.env.BREVO_API_KEY as string,
+      "api-key": apiKey,
       "Content-Type": "application/json",
       accept: "application/json",
     },
     body: JSON.stringify({
       sender: {
         name: process.env.BREVO_SENDER_NAME || "L'Arbre à Bisous",
-        email: process.env.BREVO_SENDER_EMAIL,
+        email: senderEmail,
       },
       to: [{ email: destinataire }],
       subject: sujet,
@@ -119,30 +218,23 @@ async function envoyerUnEmail(destinataire: string, sujet: string, html: string)
 }
 
 export async function envoyerEmailsConfirmation(c: DonneesCommande) {
-  const numero = c.id.slice(0, 8).toUpperCase();
+  const numero = numeroCommande(c.id);
 
   if (c.emailClient) {
     await envoyerUnEmail(
       c.emailClient,
       `Confirmation de votre commande #${numero} — L'Arbre à Bisous`,
-      corpsHTML(
-        c,
-        "Merci pour votre commande ! 🎁",
-        "Votre paiement a bien été reçu. Nous préparons votre création avec le plus grand soin. Voici le récapitulatif :"
-      )
+      corpsClientHTML(c)
     );
   }
 
   const emailBoutique = process.env.EMAIL_BOUTIQUE || process.env.BREVO_SENDER_EMAIL;
+
   if (emailBoutique) {
     await envoyerUnEmail(
       emailBoutique,
-      `🎉 Nouvelle commande #${numero} — L'Arbre à Bisous`,
-      corpsHTML(
-        c,
-        "Nouvelle commande reçue 🎉",
-        `Une commande vient d'être payée par ${c.nomClient ?? c.emailClient ?? "un client"}. À préparer et expédier :`
-      )
+      `Nouvelle commande à préparer #${numero} — L'Arbre à Bisous`,
+      corpsAdminHTML(c)
     );
   }
 }
