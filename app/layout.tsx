@@ -1,40 +1,32 @@
 // ============================================================================
-//  LAYOUT RACINE — le "cadre" commun à toutes les pages du site
-//  EMPLACEMENT dans ton projet : app/layout.tsx
+//  LAYOUT RACINE — cadre commun + métadonnées SEO globales
+//  ----------------------------------------------------------------------------
+//  EMPLACEMENT EXACT : app/layout.tsx
 //
-//  RÔLE : ce fichier enveloppe TOUTES tes pages. Ce que tu mets ici apparaît
-//  partout automatiquement. On l'utilise pour :
-//    1) charger les polices (une fois, pour tout le site),
-//    2) définir le <html> et le <body>,
-//    3) renseigner le titre/description du site (SEO),
-//    4) afficher le menu (Header) et le pied de page (Footer) sur CHAQUE page.
+//  À QUOI SERT CE FICHIER ?
+//  Ce fichier enveloppe toutes les pages du site.
+//  Il charge les polices, définit la langue du site, ajoute les métadonnées SEO
+//  principales, puis affiche le Header, le contenu de page et le Footer.
 //
-//  À RETENIR : {children} = "l'emplacement" où Next.js insère la page en cours
-//  (ta page d'accueil, /boutique, /merci…). Le layout reste identique, seul
-//  {children} change d'une page à l'autre.
+//  IMPORTANT SEO :
+//  Les métadonnées globales servent de base. Chaque page pourra ensuite avoir
+//  ses propres métadonnées plus spécifiques si besoin.
 // ============================================================================
 
 import type { Metadata } from "next";
-// next/font télécharge et optimise les polices Google automatiquement.
 import { Playfair_Display, Nunito } from "next/font/google";
-import "./globals.css"; // la feuille de style globale (Tailwind v4)
+import "./globals.css";
 
-// Le "@/..." est un raccourci vers la racine du projet.
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { CartProvider } from "@/components/CartProvider";
 
-// --- POLICES ----------------------------------------------------------------
-// Playfair Display (serif) → pour les titres.
-// Nunito (sans-serif, ronde et douce) → pour le texte courant.
-//
-// "variable" crée une variable CSS qu'on branche ensuite dans globals.css
-// (bloc @theme). ⚠️ On leur donne des noms DISTINCTS (--font-playfair /
-// --font-nunito) pour éviter tout conflit avec les noms internes de Tailwind.
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://preprod.larbreabisous.fr";
+
 const playfair = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-playfair",
-  display: "swap", // affiche un texte de secours le temps que la police charge
+  display: "swap",
 });
 
 const nunito = Nunito({
@@ -43,34 +35,57 @@ const nunito = Nunito({
   display: "swap",
 });
 
-// --- MÉTADONNÉES (SEO) ------------------------------------------------------
-// Next.js transforme cet objet en balises <title> et <meta description>.
 export const metadata: Metadata = {
-  title: "L'Arbre à Bisous — Créations artisanales personnalisées",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "L'Arbre à Bisous — Créations artisanales personnalisées",
+    template: "%s — L'Arbre à Bisous",
+  },
   description:
-    "Couture, bijoux, carterie, créations Fimo, albums photos et cadeaux personnalisés, faits main avec soin.",
+    "Créations artisanales personnalisées : couture, bijoux, carterie, créations Fimo, albums photos et cadeaux personnalisés.",
+  keywords: [
+    "créations artisanales",
+    "cadeaux personnalisés",
+    "bijoux personnalisés",
+    "couture artisanale",
+    "carterie",
+    "albums photos",
+    "créations Fimo",
+    "L'Arbre à Bisous",
+  ],
+  authors: [{ name: "L'Arbre à Bisous" }],
+  creator: "L'Arbre à Bisous",
+  publisher: "L'Arbre à Bisous",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "fr_FR",
+    url: "/",
+    siteName: "L'Arbre à Bisous",
+    title: "L'Arbre à Bisous — Créations artisanales personnalisées",
+    description:
+      "Couture, bijoux, carterie, créations Fimo, albums photos et cadeaux personnalisés, faits main avec soin.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode; // "n'importe quel contenu React" (ta page)
+  children: React.ReactNode;
 }) {
   return (
-    // lang="fr" = important pour l'accessibilité et le SEO.
-    // On accroche les 2 variables de police sur le <html> pour les rendre
-    // disponibles partout ; le branchement final se fait dans globals.css.
     <html lang="fr" className={`${playfair.variable} ${nunito.variable}`}>
-      {/* font-sans applique Nunito par défaut. Le FOND et la COULEUR du texte */}
-      {/* sont désormais gérés dans globals.css (variable --page-bg), pour     */}
-      {/* avoir un seul endroit à modifier. On ne les met donc plus ici.       */}
       <body className="font-sans">
-        {/* CartProvider enveloppe tout → le panier est accessible partout   */}
-        {/* (icône du menu, bouton Ajouter, page panier).                    */}
         <CartProvider>
-          <Header />        {/* menu, affiché en haut de chaque page          */}
-          {children}        {/* ← ici s'insère la page en cours                */}
-          <Footer />        {/* pied de page, affiché en bas de chaque page    */}
+          <Header />
+          {children}
+          <Footer />
         </CartProvider>
       </body>
     </html>
