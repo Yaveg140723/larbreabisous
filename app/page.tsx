@@ -15,6 +15,7 @@
 // ============================================================================
 
 // On importe le composant <Script> de Next.js (pour le CAPTCHA Turnstile)…
+import Image from "next/image";
 import Script from "next/script";
 // …et le client Supabase, pour lire les produits depuis ta base de données.
 import { supabase } from "@/lib/supabase";
@@ -140,11 +141,15 @@ export default async function Home() {
             >
               {/* Vignette : la photo (image_url) ou, à défaut, un carré rose. */}
               {produit.image_url ? (
-                <img
+               <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl mb-6">
+                <Image
                   src={produit.image_url}
                   alt={produit.name}
-                  className="aspect-[4/3] w-full object-cover rounded-2xl mb-6"
+                  fill
+                  sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+                  className="object-cover"
                 />
+              </div>
               ) : (
                 <div className="aspect-[4/3] bg-[#E8B7C8] rounded-2xl mb-6"></div>
               )}

@@ -1,18 +1,18 @@
 // ============================================================================
-//  PAGE BOUTIQUE — Liste publique des produits
+//  PAGE BOUTIQUE — Liste publique optimisée des produits
 //  ----------------------------------------------------------------------------
 //  EMPLACEMENT EXACT : app/boutique/page.tsx
 //
 //  À QUOI SERT CE FICHIER ?
 //  Cette page affiche tous les produits enregistrés dans Supabase.
-//  Chaque produit affiche sa photo principale, son nom, sa description,
-//  son prix, son statut personnalisable, et un lien vers sa fiche produit.
+//  Elle montre la photo principale, le nom, la description, le prix et les liens.
 //
-//  Bonus admin :
-//  si la personne connectée est l’administratrice, un bouton “Modifier”
-//  apparaît sur chaque produit pour accéder directement à /admin/[id].
+//  PERFORMANCE :
+//  Les images produit utilisent next/image pour réduire le poids et améliorer
+//  le chargement sur mobile.
 // ============================================================================
 
+import Image from "next/image";
 import { createSupabaseServer } from "@/lib/supabase-server";
 
 function formatPrix(euros: number | string) {
@@ -25,14 +25,12 @@ function formatPrix(euros: number | string) {
 export default async function BoutiquePage() {
   const supabase = await createSupabaseServer();
 
-  // On récupère l’utilisateur connecté pour savoir s’il est admin.
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   const estAdmin = user?.email === process.env.ADMIN_EMAIL;
 
-  // On lit les produits depuis la table products.
   const { data: produits, error } = await supabase
     .from("products")
     .select("id, name, description, price, image_url, customizable, stock")
@@ -66,11 +64,15 @@ export default async function BoutiquePage() {
             className="bg-white rounded-3xl p-6 md:p-8 shadow-md hover:shadow-xl hover:-translate-y-2 transition-all duration-300 flex flex-col"
           >
             {produit.image_url ? (
-              <img
-                src={produit.image_url}
-                alt={produit.name}
-                className="aspect-[4/3] w-full object-cover rounded-2xl mb-6"
-              />
+              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl mb-6">
+                <Image
+                  src={produit.image_url}
+                  alt={produit.name}
+                  fill
+                  sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+                  className="object-cover"
+                />
+              </div>
             ) : (
               <div className="aspect-[4/3] bg-[#E8B7C8] rounded-2xl mb-6"></div>
             )}
