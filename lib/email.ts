@@ -1,18 +1,16 @@
 // ============================================================================
-//  ENVOI DES EMAILS DE CONFIRMATION — client + administratrice
+//  ENVOI DES EMAILS — confirmation commande + expédition
 //  ----------------------------------------------------------------------------
 //  EMPLACEMENT EXACT : lib/email.ts
 //
 //  À QUOI SERT CE FICHIER ?
-//  Ce fichier prépare et envoie les emails après paiement Stripe confirmé.
-//  Il est appelé par le webhook Stripe : app/api/webhooks/stripe/route.ts
-//
-//  Emails envoyés :
-//  - un email client avec le récapitulatif de commande
-//  - un email boutique/admin pour préparer la commande
+//  Ce fichier prépare et envoie les emails transactionnels du site.
+//  Il est utilisé par :
+//  - app/api/webhooks/stripe/route.ts pour confirmer une commande payée
+//  - app/api/admin/update-order-status/route.ts pour prévenir d’une expédition
 //
 //  IMPORTANT SÉCURITÉ :
-//  Les textes venant du client sont échappés avant insertion dans le HTML.
+//  Les textes venant du client ou de l’admin sont échappés avant insertion HTML.
 // ============================================================================
 
 type ArticleCommande = {
@@ -33,6 +31,13 @@ export type DonneesCommande = {
   sousTotal: number;
   fraisPort: number;
   total: number;
+};
+
+export type DonneesExpedition = {
+  id: string;
+  emailClient: string | null;
+  nomClient: string | null;
+  trackingNumber: string | null;
 };
 
 function escapeHTML(value: string | null | undefined) {
@@ -184,6 +189,37 @@ function corpsAdminHTML(c: DonneesCommande): string {
   </div>`;
 }
 
+function corpsExpeditionHTML(c: DonneesExpedition): string {
+  const numero = numeroCommande(c.id);
+
+  return `
+  <div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;color:#2C2C2C;">
+    <h1 style="color:#B03052;font-size:26px;margin-bottom:4px;">Votre commande est expédiée 📦</h1>
+    <p style="font-size:13px;color:#888;margin:0 0 18px;">Commande #${numero}</p>
+
+    <p style="font-size:15px;line-height:1.6;">
+      Bonjour ${escapeHTML(c.nomClient) || "et merci"},<br>
+      Votre commande a été marquée comme expédiée.
+    </p>
+
+    ${
+      c.trackingNumber
+        ? `<div style="background:#FFF8FA;border:1px solid #F3D9E1;border-radius:14px;padding:14px;margin:18px 0;">
+            <strong style="color:#B03052;">Numéro de suivi</strong><br>
+            ${escapeHTML(c.trackingNumber)}
+          </div>`
+        : `<div style="background:#FFF8FA;border:1px solid #F3D9E1;border-radius:14px;padding:14px;margin:18px 0;">
+            Votre commande est en cours d’acheminement.
+          </div>`
+    }
+
+    <p style="font-size:13px;color:#888;margin-top:24px;">
+      Vous pouvez retrouver le suivi dans votre espace “Mes commandes”.<br>
+      L'Arbre à Bisous — Créations artisanales personnalisées
+    </p>
+  </div>`;
+}
+
 async function envoyerUnEmail(destinataire: string, sujet: string, html: string) {
   const apiKey = process.env.BREVO_API_KEY;
   const senderEmail = process.env.BREVO_SENDER_EMAIL;
@@ -237,4 +273,16 @@ export async function envoyerEmailsConfirmation(c: DonneesCommande) {
       corpsAdminHTML(c)
     );
   }
+}
+
+export async function envoyerEmailExpedition(c: DonneesExpedition) {
+  if (!c.emailClient) return;
+
+  const numero = numeroCommande(c.id);
+
+  await envoyerUnEmail(
+    c.emailClient,
+    `Votre commande #${numero} est expédiée — L'Arbre à Bisous`,
+    corpsExpeditionHTML(c)
+  );
 }
