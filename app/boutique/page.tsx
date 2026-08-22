@@ -64,17 +64,25 @@ export default async function BoutiquePage() {
             className="bg-white rounded-3xl p-6 md:p-8 shadow-md hover:shadow-xl hover:-translate-y-2 transition-all duration-300 flex flex-col"
           >
             {produit.image_url ? (
-              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl mb-6">
-                <Image
-                  src={produit.image_url}
-                  alt={produit.name}
-                  fill
-                  sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
-                  className="object-cover"
-                />
-              </div>
+            <a
+              href={`/produit/${produit.id}`}
+              className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl mb-6 block"
+              aria-label={`Voir le produit ${produit.name}`}
+            >
+              <Image
+                src={produit.image_url}
+                alt={produit.name}
+                fill
+                sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+                className="object-cover transition-transform duration-300 hover:scale-105"
+              />
+            </a>
             ) : (
-              <div className="aspect-[4/3] bg-[#E8B7C8] rounded-2xl mb-6"></div>
+            <a
+              href={`/produit/${produit.id}`}
+              className="aspect-[4/3] bg-[#E8B7C8] rounded-2xl mb-6 block"
+              aria-label={`Voir le produit ${produit.name}`}
+            />
             )}
 
             <h2 className="text-2xl font-semibold text-[#B03052] mb-2">
