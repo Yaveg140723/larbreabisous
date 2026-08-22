@@ -1,3 +1,34 @@
+// ============================================================================
+//  PAGE CGV — Conditions générales de vente
+//  ----------------------------------------------------------------------------
+//  EMPLACEMENT EXACT : app/cgv/page.tsx
+//
+//  À QUOI SERT CE FICHIER ?
+//  Cette page présente les conditions générales de vente du site : produits,
+//  prix, commande, paiement, livraison, rétractation, garanties et médiation.
+//
+//  SEO / CONFORMITÉ :
+//  Les CGV sont importantes pour la confiance client et la conformité
+//  e-commerce. Les métadonnées donnent aussi un titre clair à la page.
+// ============================================================================
+
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Conditions générales de vente",
+  description:
+    "Consultez les conditions générales de vente de L'Arbre à Bisous : commande, paiement, livraison, retours, garanties légales et médiation.",
+  alternates: {
+    canonical: "/cgv",
+  },
+  openGraph: {
+    title: "Conditions générales de vente — L'Arbre à Bisous",
+    description:
+      "Informations sur les commandes, paiements, livraisons, retours et garanties applicables aux créations artisanales.",
+    url: "/cgv",
+  },
+};
+
 export default function CGVPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">

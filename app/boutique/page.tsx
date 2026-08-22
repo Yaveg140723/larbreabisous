@@ -12,8 +12,24 @@
 //  le chargement sur mobile.
 // ============================================================================
 
+import type { Metadata } from "next";
 import Image from "next/image";
 import { createSupabaseServer } from "@/lib/supabase-server";
+
+export const metadata: Metadata = {
+  title: "Boutique",
+  description:
+    "Découvrez les créations artisanales personnalisées de L'Arbre à Bisous : couture, bijoux, carterie, créations Fimo, albums photos et cadeaux personnalisés.",
+  alternates: {
+    canonical: "/boutique",
+  },
+  openGraph: {
+    title: "Boutique — L'Arbre à Bisous",
+    description:
+      "Créations artisanales personnalisées, cadeaux faits main et pièces uniques à offrir ou à s’offrir.",
+    url: "/boutique",
+  },
+};
 
 function formatPrix(euros: number | string) {
   return Number(euros).toLocaleString("fr-FR", {

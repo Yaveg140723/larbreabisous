@@ -12,6 +12,23 @@
 //  Les cookies mentionnés sont liés au fonctionnement normal du service.
 // ============================================================================
 
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Politique cookies",
+  description:
+    "Consultez la politique cookies de L'Arbre à Bisous : cookies nécessaires, authentification, panier, sécurité des formulaires et paiement.",
+  alternates: {
+    canonical: "/politique-cookies",
+  },
+  openGraph: {
+    title: "Politique cookies — L'Arbre à Bisous",
+    description:
+      "Informations CNIL sur les cookies nécessaires au fonctionnement du site L'Arbre à Bisous.",
+    url: "/politique-cookies",
+  },
+};
+
 const sections = [
   {
     titre: "Qu’est-ce qu’un cookie ?",

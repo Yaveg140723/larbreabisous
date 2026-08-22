@@ -1,4 +1,35 @@
+// ============================================================================
+//  PAGE CONTACT — accès au formulaire de contact
+//  ----------------------------------------------------------------------------
+//  EMPLACEMENT EXACT : app/contact/page.tsx
+//
+//  À QUOI SERT CE FICHIER ?
+//  Cette page permet d’avoir une vraie URL /contact.
+//  Elle renvoie vers le formulaire de contact principal présent sur la page
+//  d’accueil, sans dupliquer le formulaire.
+//
+//  SEO :
+//  Les métadonnées donnent à Google et aux partages sociaux un titre et une
+//  description adaptés à la page Contact.
+// ============================================================================
+
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Contact",
+  description:
+    "Contactez L'Arbre à Bisous pour une question sur une création artisanale, une commande personnalisée ou un service après-vente.",
+  alternates: {
+    canonical: "/contact",
+  },
+  openGraph: {
+    title: "Contact — L'Arbre à Bisous",
+    description:
+      "Une question sur une création, une commande personnalisée ou un SAV ? Contactez L'Arbre à Bisous.",
+    url: "/contact",
+  },
+};
 
 export default function ContactPage() {
   return (

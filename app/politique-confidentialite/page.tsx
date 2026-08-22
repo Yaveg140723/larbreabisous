@@ -1,3 +1,34 @@
+// ============================================================================
+//  PAGE POLITIQUE DE CONFIDENTIALITÉ — données personnelles
+//  ----------------------------------------------------------------------------
+//  EMPLACEMENT EXACT : app/politique-confidentialite/page.tsx
+//
+//  À QUOI SERT CE FICHIER ?
+//  Cette page explique quelles données personnelles peuvent être collectées,
+//  pourquoi elles sont utilisées, combien de temps elles sont conservées et
+//  comment exercer ses droits.
+//
+//  CONFORMITÉ RGPD :
+//  Cette page contribue à l’information obligatoire des utilisateurs.
+// ============================================================================
+
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Politique de confidentialité",
+  description:
+    "Découvrez comment L'Arbre à Bisous collecte, utilise et protège vos données personnelles dans le cadre des commandes, contacts et newsletters.",
+  alternates: {
+    canonical: "/politique-confidentialite",
+  },
+  openGraph: {
+    title: "Politique de confidentialité — L'Arbre à Bisous",
+    description:
+      "Informations RGPD sur les données collectées, les finalités, la conservation, les sous-traitants et les droits des utilisateurs.",
+    url: "/politique-confidentialite",
+  },
+};
+
 export default function PolitiqueConfidentialitePage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">

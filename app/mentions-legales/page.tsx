@@ -1,3 +1,33 @@
+// ============================================================================
+//  PAGE MENTIONS LÉGALES — informations légales du site
+//  ----------------------------------------------------------------------------
+//  EMPLACEMENT EXACT : app/mentions-legales/page.tsx
+//
+//  À QUOI SERT CE FICHIER ?
+//  Cette page présente les informations légales de L’Arbre à Bisous : éditeur,
+//  contact, responsable de publication, hébergeur et propriété intellectuelle.
+//
+//  CONFORMITÉ :
+//  Cette page fait partie des informations obligatoires pour un site e-commerce.
+// ============================================================================
+
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Mentions légales",
+  description:
+    "Consultez les mentions légales de L'Arbre à Bisous : éditeur du site, contact, responsable de publication, hébergement et propriété intellectuelle.",
+  alternates: {
+    canonical: "/mentions-legales",
+  },
+  openGraph: {
+    title: "Mentions légales — L'Arbre à Bisous",
+    description:
+      "Informations légales de L'Arbre à Bisous : éditeur, contact, responsable de publication et hébergement.",
+    url: "/mentions-legales",
+  },
+};
+
 export default function MentionsLegalesPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">

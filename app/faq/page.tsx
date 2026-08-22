@@ -11,6 +11,23 @@
 //  Rassurer les clientes, réduire les questions répétitives et améliorer le SEO.
 // ============================================================================
 
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "FAQ",
+  description:
+    "Questions fréquentes sur les créations artisanales personnalisées, la livraison, les retours, le paiement et la personnalisation chez L'Arbre à Bisous.",
+  alternates: {
+    canonical: "/faq",
+  },
+  openGraph: {
+    title: "FAQ — L'Arbre à Bisous",
+    description:
+      "Retrouvez les réponses aux questions fréquentes sur les commandes, la livraison, les retours et les créations personnalisées.",
+    url: "/faq",
+  },
+};
+
 const questions = [
   {
     question: "Quels types de créations propose L'Arbre à Bisous ?",
