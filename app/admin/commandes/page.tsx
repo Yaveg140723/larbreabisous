@@ -1,12 +1,12 @@
 // ============================================================================
-//  PAGE ADMIN — Commandes reçues et suivi de traitement
+//  PAGE ADMIN — Commandes reçues, statut et suivi transport
 //  ----------------------------------------------------------------------------
 //  EMPLACEMENT EXACT : app/admin/commandes/page.tsx
 //
 //  À QUOI SERT CE FICHIER ?
 //  Cette page permet à l’administratrice de voir toutes les commandes reçues,
 //  leur statut de paiement, leur statut de traitement, les articles commandés,
-//  l’adresse de livraison et le total.
+//  l’adresse de livraison, le total, le numéro de suivi et une note interne.
 //
 //  Elle permet aussi de faire avancer une commande dans le traitement :
 //  - à préparer
@@ -59,6 +59,8 @@ type Order = {
   statut_traitement: string | null;
   prepared_at: string | null;
   shipped_at: string | null;
+  tracking_number: string | null;
+  admin_note: string | null;
   email: string | null;
   nom_client: string | null;
   telephone: string | null;
@@ -161,53 +163,101 @@ export default async function Commandes() {
               </p>
             )}
 
-            {(c.prepared_at || c.shipped_at) && (
-              <div className="text-xs text-gray-500 mb-3 space-y-1">
+            {(c.tracking_number || c.admin_note || c.prepared_at || c.shipped_at) && (
+              <div className="rounded-xl bg-[#FFF8FA] border border-[#F3D9E1] p-3 text-sm text-gray-600 mb-3 space-y-1">
+                {c.tracking_number && (
+                  <p>
+                    <span className="font-semibold text-[#B03052]">Suivi :</span>{" "}
+                    {c.tracking_number}
+                  </p>
+                )}
+
+                {c.admin_note && (
+                  <p>
+                    <span className="font-semibold text-[#B03052]">Note admin :</span>{" "}
+                    {c.admin_note}
+                  </p>
+                )}
+
                 {c.prepared_at && <p>Préparée le {formatDate(c.prepared_at)}</p>}
                 {c.shipped_at && <p>Expédiée le {formatDate(c.shipped_at)}</p>}
               </div>
             )}
 
-            <div className="flex flex-wrap justify-between gap-4 border-t border-gray-100 pt-4">
-              <div className="flex flex-wrap gap-2">
-                {c.statut_traitement !== "a_preparer" && (
-                  <form action="/api/admin/update-order-status" method="POST">
-                    <input type="hidden" name="order_id" value={c.id} />
-                    <input type="hidden" name="statut_traitement" value="a_preparer" />
-                    <button className="rounded-lg border border-[#B03052] px-3 py-2 text-sm font-semibold text-[#B03052] hover:bg-[#F5E6E8]">
-                      Repasser à préparer
-                    </button>
-                  </form>
-                )}
+            <form
+              action="/api/admin/update-order-status"
+              method="POST"
+              className="border-t border-gray-100 pt-4"
+            >
+              <input type="hidden" name="order_id" value={c.id} />
 
-                {c.statut_traitement !== "preparee" && c.statut_traitement !== "expediee" && (
-                  <form action="/api/admin/update-order-status" method="POST">
-                    <input type="hidden" name="order_id" value={c.id} />
-                    <input type="hidden" name="statut_traitement" value="preparee" />
-                    <button className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-200">
-                      Marquer préparée
-                    </button>
-                  </form>
-                )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                <div>
+                  <label htmlFor={`tracking-${c.id}`} className="block text-sm font-semibold text-[#2C2C2C] mb-1">
+                    Numéro de suivi
+                  </label>
+                  <input
+                    id={`tracking-${c.id}`}
+                    name="tracking_number"
+                    type="text"
+                    defaultValue={c.tracking_number ?? ""}
+                    placeholder="ex : Chronopost 123456789"
+                    className="w-full border border-gray-300 rounded-xl p-3 text-sm text-[#2C2C2C] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#B03052]/40"
+                  />
+                </div>
 
-                {c.statut_traitement !== "expediee" && (
-                  <form action="/api/admin/update-order-status" method="POST">
-                    <input type="hidden" name="order_id" value={c.id} />
-                    <input type="hidden" name="statut_traitement" value="expediee" />
-                    <button className="rounded-lg bg-[#B03052] px-3 py-2 text-sm font-semibold text-white hover:bg-[#8d2742]">
-                      Marquer expédiée
-                    </button>
-                  </form>
-                )}
+                <div>
+                  <label htmlFor={`note-${c.id}`} className="block text-sm font-semibold text-[#2C2C2C] mb-1">
+                    Note interne
+                  </label>
+                  <input
+                    id={`note-${c.id}`}
+                    name="admin_note"
+                    type="text"
+                    defaultValue={c.admin_note ?? ""}
+                    placeholder="ex : emballage cadeau, point relais confirmé..."
+                    className="w-full border border-gray-300 rounded-xl p-3 text-sm text-[#2C2C2C] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#B03052]/40"
+                  />
+                </div>
               </div>
 
-              <div className="flex justify-end gap-6 text-sm">
-                <span className="text-gray-500">
-                  Port : {c.frais_port === 0 ? "offert" : formatPrix(c.frais_port)}
-                </span>
-                <span className="font-bold text-[#B03052]">Total : {formatPrix(c.total)}</span>
+              <div className="flex flex-wrap justify-between gap-4">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    name="statut_traitement"
+                    value="a_preparer"
+                    className="rounded-lg border border-[#B03052] px-3 py-2 text-sm font-semibold text-[#B03052] hover:bg-[#F5E6E8]"
+                  >
+                    À préparer
+                  </button>
+
+                  <button
+                    name="statut_traitement"
+                    value="preparee"
+                    className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-200"
+                  >
+                    Marquer préparée
+                  </button>
+
+                  <button
+                    name="statut_traitement"
+                    value="expediee"
+                    className="rounded-lg bg-[#B03052] px-3 py-2 text-sm font-semibold text-white hover:bg-[#8d2742]"
+                  >
+                    Marquer expédiée
+                  </button>
+                </div>
+
+                <div className="flex justify-end gap-6 text-sm">
+                  <span className="text-gray-500">
+                    Port : {c.frais_port === 0 ? "offert" : formatPrix(c.frais_port)}
+                  </span>
+                  <span className="font-bold text-[#B03052]">
+                    Total : {formatPrix(c.total)}
+                  </span>
+                </div>
               </div>
-            </div>
+            </form>
           </div>
         ))}
       </div>

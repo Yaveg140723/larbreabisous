@@ -1,14 +1,14 @@
 // ============================================================================
-//  ROUTE API — Modifier le statut de traitement d’une commande
+//  ROUTE API — Modifier le suivi de traitement d’une commande
 //  ----------------------------------------------------------------------------
 //  EMPLACEMENT EXACT : app/api/admin/update-order-status/route.ts
 //
 //  À QUOI SERT CE FICHIER ?
 //  Cette route est appelée depuis la page admin des commandes.
-//  Elle permet à l’administratrice de marquer une commande comme :
-//  - à préparer
-//  - préparée
-//  - expédiée
+//  Elle permet à l’administratrice de :
+//  - changer le statut de traitement : à préparer, préparée, expédiée
+//  - ajouter/modifier un numéro de suivi transport
+//  - ajouter/modifier une note interne admin
 //
 //  IMPORTANT SÉCURITÉ :
 //  La route revérifie toujours que la personne connectée est bien l’admin.
@@ -26,6 +26,14 @@ function estStatutTraitement(value: unknown): value is StatutTraitement {
   return typeof value === "string" && STATUTS_AUTORISES.includes(value as StatutTraitement);
 }
 
+function texteOptionnel(value: FormDataEntryValue | null) {
+  if (typeof value !== "string") return null;
+
+  const texte = value.trim();
+
+  return texte.length > 0 ? texte.slice(0, 200) : null;
+}
+
 export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServer();
 
@@ -38,8 +46,11 @@ export async function POST(request: NextRequest) {
   }
 
   const formData = await request.formData();
+
   const orderId = formData.get("order_id");
   const statutTraitement = formData.get("statut_traitement");
+  const trackingNumber = texteOptionnel(formData.get("tracking_number"));
+  const adminNote = texteOptionnel(formData.get("admin_note"));
 
   if (typeof orderId !== "string" || !orderId) {
     return NextResponse.json({ error: "Commande invalide" }, { status: 400 });
@@ -51,6 +62,8 @@ export async function POST(request: NextRequest) {
 
   const updates: Record<string, string | null> = {
     statut_traitement: statutTraitement,
+    tracking_number: trackingNumber,
+    admin_note: adminNote,
   };
 
   if (statutTraitement === "a_preparer") {
