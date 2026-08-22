@@ -44,6 +44,7 @@ export default function Footer() {
               <li><a href="/mentions-legales" className="hover:underline">Mentions légales</a></li>
               <li><a href="/cgv" className="hover:underline">CGV</a></li>
               <li><a href="/politique-confidentialite" className="hover:underline">Politique de confidentialité</a></li>
+              <li><a href="/politique-cookies" className="hover:underline">Politique cookies</a></li>
               <li><a href="/faq" className="hover:underline">FAQ</a></li>
             </ul>
           </div>
